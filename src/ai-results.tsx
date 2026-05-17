@@ -142,14 +142,132 @@ function generate(prompt: string, prefs: Prefs): Promise<string> {
 
 const NOW = Math.floor(Date.now() / 1000);
 const SOD = NOW - (NOW % 86400); // start of today
+const ONE_WEEK = 7 * 86400;
+const ONE_MONTH = 30 * 86400;
+
+const STOP_WORDS = new Set([
+  "about",
+  "again",
+  "anything",
+  "copy",
+  "copied",
+  "clipboard",
+  "find",
+  "from",
+  "give",
+  "have",
+  "looking",
+  "looked",
+  "need",
+  "open",
+  "show",
+  "something",
+  "that",
+  "thing",
+  "this",
+  "what",
+  "whats",
+  "when",
+  "where",
+  "which",
+  "with",
+  "was",
+  "were",
+]);
 
 function defaultStrategies(): SearchStrategy[] {
-  return [
+  return mergeStrategies([
     {}, // full scan, sorted by recency
     { since: SOD }, // today
-    { since: SOD - 7 * 86400 }, // this week
+    { since: SOD - ONE_WEEK }, // this week
     { content_type: "url" }, // all URLs
+  ]);
+}
+
+function normalizeQuestion(question: string): string {
+  return question
+    .toLowerCase()
+    .replace(/\bwesbite\b/g, "website")
+    .replace(/\bwebiste\b/g, "website")
+    .replace(/\bgithub\b/g, "github")
+    .replace(/[^\w\s.+#-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function expandToken(token: string): string[] {
+  const expanded = [token];
+  if (token.endsWith("ies") && token.length > 4) {
+    expanded.push(`${token.slice(0, -3)}y`);
+  } else if (token.endsWith("es") && token.length > 4) {
+    expanded.push(token.slice(0, -2));
+  } else if (token.endsWith("s") && token.length > 3) {
+    expanded.push(token.slice(0, -1));
+  }
+  return expanded;
+}
+
+function queryTokens(question: string): string[] {
+  const normalized = normalizeQuestion(question);
+  const rawTokens = normalized
+    .split(/\s+/)
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+  return [...new Set(rawTokens.flatMap(expandToken))].slice(0, 12);
+}
+
+function mergeStrategies(strategies: SearchStrategy[]): SearchStrategy[] {
+  const seen = new Set<string>();
+  const merged: SearchStrategy[] = [];
+  for (const strategy of strategies) {
+    const key = JSON.stringify({
+      since: strategy.since ?? null,
+      until: strategy.until ?? null,
+      source_app: strategy.source_app ?? null,
+      content_type: strategy.content_type ?? null,
+      is_sensitive: strategy.is_sensitive ?? null,
+      search_terms: strategy.search_terms ?? null,
+    });
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(strategy);
+  }
+  return merged;
+}
+
+function deterministicStrategies(question: string): SearchStrategy[] {
+  const q = normalizeQuestion(question);
+  const tokens = queryTokens(question);
+  const strategies: SearchStrategy[] = [
+    {},
+    { since: SOD },
+    { since: SOD - ONE_WEEK },
   ];
+
+  if (/website|url|link|site|page|visited|browser|chrome|safari|arc/.test(q)) {
+    strategies.push({ content_type: "url" }, { source_app: "Chrome" });
+  }
+  if (
+    /code|snippet|function|class|repo|github|pull request|typescript|swift|sql/.test(
+      q,
+    )
+  ) {
+    strategies.push({ content_type: "code" });
+  }
+  if (/email|mail|contact/.test(q)) {
+    strategies.push({ content_type: "email" });
+  }
+  if (/api.?key|secret|password|token|credential|jwt/.test(q)) {
+    strategies.push({ content_type: "sensitive" }, { is_sensitive: true });
+  }
+
+  for (const token of tokens.slice(0, 8)) {
+    strategies.push(
+      { search_terms: token },
+      { search_terms: token, since: SOD - ONE_MONTH },
+    );
+  }
+
+  return mergeStrategies(strategies);
 }
 
 async function planQuery(
@@ -205,21 +323,17 @@ Example output:
       .replace(/```/g, "")
       .trim();
     const match = stripped.match(/\[[\s\S]*\]/);
-    if (!match) return defaultStrategies();
+    if (!match) return deterministicStrategies(question);
     const parsed = JSON.parse(match[0]) as SearchStrategy[];
     if (!Array.isArray(parsed) || parsed.length === 0)
-      return defaultStrategies();
+      return deterministicStrategies(question);
     // Always append a broad fallback so we never get zero results
-    if (
-      !parsed.some(
-        (s) => !s.since && !s.source_app && !s.search_terms && !s.content_type,
-      )
-    ) {
-      parsed.push({});
-    }
-    return parsed.slice(0, 7);
+    return mergeStrategies([
+      ...deterministicStrategies(question),
+      ...parsed,
+    ]).slice(0, 18);
   } catch {
-    return defaultStrategies();
+    return deterministicStrategies(question);
   }
 }
 
@@ -246,43 +360,72 @@ function strategyToSQL(s: SearchStrategy): string {
   }
   if (s.is_sensitive !== undefined)
     conds.push(`is_sensitive = ${s.is_sensitive ? 1 : 0}`);
-  if (s.search_terms) conds.push(`content LIKE '%${esc(s.search_terms)}%'`);
+  if (s.search_terms) {
+    const term = esc(s.search_terms);
+    conds.push(
+      `(content LIKE '%${term}%' OR source_url LIKE '%${term}%' OR source_file LIKE '%${term}%' OR source_app LIKE '%${term}%')`,
+    );
+  }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   return `SELECT ${COLS} FROM clips ${where}`;
 }
 
 function buildUnionSQL(strategies: SearchStrategy[]): string {
   const selects = strategies.map(strategyToSQL);
-  return `SELECT ${COLS} FROM (${selects.join(" UNION ")}) ORDER BY created_at DESC LIMIT 50`;
+  return `SELECT ${COLS} FROM (${selects.join(" UNION ")}) ORDER BY created_at DESC LIMIT 150`;
 }
 
 // ── Relevance scoring ─────────────────────────────────────────────────────────
 
 function scoreClip(clip: Clip, query: string): number {
-  const q = query.toLowerCase();
+  const q = normalizeQuestion(query);
+  const tokens = queryTokens(query);
+  const haystack = [
+    clip.is_sensitive ? "" : clip.content,
+    clip.source_url ?? "",
+    clip.source_file ?? "",
+    clip.source_app ?? "",
+    clip.content_lang ?? "",
+    clip.content_type,
+  ]
+    .join(" ")
+    .toLowerCase();
   let score = 0;
   if (
     /website|url|link|site|page|visit|went to/.test(q) &&
     clip.content_type === "url"
   )
-    score += 4;
+    score += 8;
+  if (/website|url|link|site|page|visit|went to/.test(q) && clip.source_url)
+    score += 6;
   if (
     /code|snippet|function|class|script/.test(q) &&
     clip.content_type === "code"
   )
-    score += 4;
-  if (/api.?key|secret|password|token|credential/.test(q) && clip.is_sensitive)
-    score += 4;
-  if (/email/.test(q) && clip.content_type === "email") score += 4;
-  if (!clip.is_sensitive) {
-    const content = clip.content.toLowerCase();
-    for (const word of q.split(/\s+/).filter((w) => w.length > 3)) {
-      if (content.includes(word)) score += 2;
-    }
+    score += 8;
+  if (/api.?key|secret|password|token|credential|jwt/.test(q)) {
+    if (clip.is_sensitive) score += 10;
+  } else if (clip.is_sensitive) {
+    score -= 12;
   }
+  if (/email|mail|contact/.test(q) && clip.content_type === "email") score += 8;
+
+  for (const token of tokens) {
+    if (haystack.includes(token)) score += token.length > 5 ? 5 : 3;
+  }
+
+  const tokenMatches = tokens.filter((token) =>
+    haystack.includes(token),
+  ).length;
+  if (tokenMatches > 1) score += tokenMatches * 3;
+  if (tokens.length > 0 && tokenMatches === tokens.length) score += 6;
+
   if (clip.source_app) {
     const app = clip.source_app.toLowerCase();
     if (q.includes(app) || q.includes(app.split(" ")[0])) score += 3;
+  }
+  if (clip.source_url && /chrome|browser|page|website|site|url|link/.test(q)) {
+    score += 2;
   }
   return score;
 }
@@ -353,6 +496,25 @@ function formatWebsite(url: string): string {
 
 function itemLabel(count: number): string {
   return `${count} item${count !== 1 ? "s" : ""}`;
+}
+
+function rankSources(
+  clips: ClipWithContext[],
+  question: string,
+  relevantIds: number[] | null,
+  limit: number,
+): ClipWithContext[] {
+  const relevant = new Set(relevantIds ?? []);
+  const ranked = clips
+    .map((clip, index) => ({
+      clip,
+      score: scoreClip(clip, question) + (relevant.has(index) ? 25 : 0),
+    }))
+    .sort((a, b) => b.score - a.score || b.clip.created_at - a.clip.created_at);
+
+  const positive = ranked.filter((entry) => entry.score > 0);
+  const pool = positive.length > 0 ? positive : ranked;
+  return pool.slice(0, limit).map((entry) => entry.clip);
 }
 
 async function synthesize(
@@ -539,13 +701,12 @@ export function AIResults({ initialQuery = "" }: { initialQuery?: string }) {
 
   // Determine which clips to show as sources
   const sourceLimit = isBroadWebsiteQuestion(committedQuery) ? 10 : 5;
-  const sourcesToShow =
-    relevantIds && relevantIds.length > 0
-      ? (relevantIds
-          .slice(0, sourceLimit)
-          .map((i) => clips[i])
-          .filter(Boolean) as ClipWithContext[])
-      : clips.slice(0, sourceLimit);
+  const sourcesToShow = rankSources(
+    clips,
+    committedQuery,
+    relevantIds,
+    sourceLimit,
+  );
 
   const isPending =
     !isPlanLoading &&
