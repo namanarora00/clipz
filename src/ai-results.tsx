@@ -223,7 +223,7 @@ Example output:
 // ── Pass 1.5: build UNION SQL ─────────────────────────────────────────────────
 
 const COLS =
-  "id,content,content_type,is_sensitive,source_app,source_url,source_file,content_html,content_lang,created_at";
+  "id,content,content_type,is_sensitive,source_app,source_url,source_file,content_html,content_lang,created_at,copy_count";
 
 function esc(s: string): string {
   return s.replace(/'/g, "''");
@@ -245,7 +245,7 @@ function strategyToSQL(s: SearchStrategy): string {
     conds.push(`is_sensitive = ${s.is_sensitive ? 1 : 0}`);
   if (s.search_terms) conds.push(`content LIKE '%${esc(s.search_terms)}%'`);
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-  return `SELECT ${COLS} FROM clips ${where} ORDER BY created_at DESC LIMIT 20`;
+  return `SELECT ${COLS} FROM clips ${where}`;
 }
 
 function buildUnionSQL(strategies: SearchStrategy[]): string {
