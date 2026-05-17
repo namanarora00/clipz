@@ -322,6 +322,66 @@ interface SynthResult {
   relevantIndices: number[];
 }
 
+function isBroadWebsiteQuestion(question: string): boolean {
+  const q = question.toLowerCase();
+  return (
+    /(what|which|show|list|find|whats|what's)/.test(q) &&
+    /(web\s*site|website|wesbite|site|page|link|url|looking at|looked at|visited|went to)/.test(
+      q,
+    )
+  );
+}
+
+function urlForClip(clip: Clip): string | null {
+  if (clip.content_type === "url" && !clip.is_sensitive)
+    return clip.content.trim();
+  return clip.source_url ?? null;
+}
+
+function formatWebsite(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path =
+      parsed.pathname && parsed.pathname !== "/"
+        ? parsed.pathname.replace(/\/$/, "")
+        : "";
+    return `${parsed.hostname}${path}`;
+  } catch {
+    return truncate(url, 80);
+  }
+}
+
+function synthesizeWebsiteList(clips: Clip[]): SynthResult {
+  const seen = new Set<string>();
+  const matches: { label: string; index: number }[] = [];
+
+  clips
+    .map((clip, index) => ({ clip, index }))
+    .filter(({ clip }) => urlForClip(clip))
+    .sort((a, b) => b.clip.created_at - a.clip.created_at)
+    .forEach(({ clip, index }) => {
+      const url = urlForClip(clip);
+      if (!url) return;
+      const key = url.split("#")[0].replace(/\/$/, "");
+      if (seen.has(key)) return;
+      seen.add(key);
+      matches.push({ label: formatWebsite(url), index });
+    });
+
+  if (matches.length === 0) {
+    return {
+      answer: "I found clipboard items, but no website/page sources in them.",
+      relevantIndices: [],
+    };
+  }
+
+  const shown = matches.slice(0, 10);
+  return {
+    answer: `Recent websites/pages I found:\n${shown.map((match) => `- ${match.label}`).join("\n")}`,
+    relevantIndices: shown.map((match) => match.index),
+  };
+}
+
 async function synthesize(
   question: string,
   clips: Clip[],
@@ -332,6 +392,10 @@ async function synthesize(
       answer: "No clipboard items found for this query.",
       relevantIndices: [],
     };
+
+  if (isBroadWebsiteQuestion(question)) {
+    return synthesizeWebsiteList(clips);
+  }
 
   const sorted = [...clips]
     .map((c, i) => ({ c, i, score: scoreClip(c, question) }))
@@ -499,13 +563,14 @@ export function AIResults({ initialQuery = "" }: { initialQuery?: string }) {
   if (permissionView) return permissionView;
 
   // Determine which clips to show as sources
+  const sourceLimit = isBroadWebsiteQuestion(committedQuery) ? 10 : 5;
   const sourcesToShow =
     relevantIds && relevantIds.length > 0
       ? (relevantIds
-          .slice(0, 5)
+          .slice(0, sourceLimit)
           .map((i) => clips[i])
           .filter(Boolean) as ClipWithContext[])
-      : clips.slice(0, 5);
+      : clips.slice(0, sourceLimit);
 
   const isPending =
     !isPlanLoading &&
