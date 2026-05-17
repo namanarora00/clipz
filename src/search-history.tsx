@@ -404,14 +404,6 @@ function ClipItem({
               },
             ]
           : []),
-        ...((clip.copy_count ?? 1) > 1
-          ? [
-              {
-                text: `${clip.copy_count}×`,
-                tooltip: `Copied ${clip.copy_count} times`,
-              },
-            ]
-          : []),
       ]}
       detail={
         <List.Item.Detail
