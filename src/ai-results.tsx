@@ -721,6 +721,14 @@ function SourceItem({ clip }: { clip: ClipWithContext }) {
       title={title}
       subtitle={subtitle}
       accessories={[
+        ...(openUrl || fileLink
+          ? [
+              {
+                text: "⌘O",
+                tooltip: openUrl ? "Open source page" : "Open source file",
+              },
+            ]
+          : []),
         ...(clip.source_app
           ? [{ text: clip.source_app, tooltip: "Source app" }]
           : []),

@@ -410,6 +410,14 @@ function ClipItem({
           : truncate(clip.content, 72)
       }
       accessories={[
+        ...(openUrl || fileLink
+          ? [
+              {
+                text: "⌘O",
+                tooltip: openUrl ? "Open source page" : "Open source file",
+              },
+            ]
+          : []),
         ...(semanticScore
           ? [
               {
@@ -425,7 +433,7 @@ function ClipItem({
           metadata={
             <List.Item.Detail.Metadata>
               <List.Item.Detail.Metadata.Label
-                title="Last copied"
+                title="Copied"
                 text={new Date(clip.created_at * 1000).toLocaleString()}
                 icon={Icon.Clock}
               />
