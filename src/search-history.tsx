@@ -54,6 +54,7 @@ export default function SearchHistory() {
   const [semanticResults, setSemanticResults] = useState<SemanticResult[]>([]);
   const [isSemanticLoading, setIsSemanticLoading] = useState(false);
   const [semanticError, setSemanticError] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const { push } = useNavigation();
 
   const sql = useMemo(() => buildSearchSQL(searchText), [searchText]);
@@ -164,10 +165,13 @@ export default function SearchHistory() {
       searchBarPlaceholder="Search clipboard history… semantic included, naturally"
       isShowingDetail={clips.length > 0 || !!searchText.trim()}
       navigationTitle="Clipz"
+      selectedItemId={selectedItemId ?? undefined}
+      onSelectionChange={setSelectedItemId}
     >
       <List.Section>
         {aiEnabled && (
           <List.Item
+            id="ask-ai"
             icon={{ source: Icon.Stars, tintColor: Color.Purple }}
             title={
               searchText.trim()
@@ -199,6 +203,7 @@ export default function SearchHistory() {
       {!searchText.trim() && clips.length === 0 && !isLoading ? (
         <List.Section>
           <List.Item
+            id="empty"
             icon={{ source: Icon.Clipboard, tintColor: Color.SecondaryText }}
             title="No clipboard history yet"
             subtitle="Start copying. Items appear here automatically."
@@ -223,6 +228,7 @@ export default function SearchHistory() {
           {semanticError && (
             <List.Section title="Semantic Search">
               <List.Item
+                id="semantic-error"
                 icon={{ source: Icon.ExclamationMark, tintColor: Color.Yellow }}
                 title={
                   semanticError.includes("Embedding model missing")
@@ -260,6 +266,7 @@ export default function SearchHistory() {
                   clip={result.clip}
                   semanticScore={result.score}
                   renderSettingsActions={renderSettingsActions}
+                  onKeepFocus={setSelectedItemId}
                 />
               ))}
             </List.Section>
@@ -274,6 +281,7 @@ export default function SearchHistory() {
                   key={c.id}
                   clip={c}
                   renderSettingsActions={renderSettingsActions}
+                  onKeepFocus={setSelectedItemId}
                 />
               ))}
             </List.Section>
@@ -291,6 +299,7 @@ export default function SearchHistory() {
                 key={c.id}
                 clip={c}
                 renderSettingsActions={renderSettingsActions}
+                onKeepFocus={setSelectedItemId}
               />
             ))}
           </List.Section>
@@ -301,6 +310,7 @@ export default function SearchHistory() {
             key={c.id}
             clip={c}
             renderSettingsActions={renderSettingsActions}
+            onKeepFocus={setSelectedItemId}
           />
         ))
       )}
@@ -362,11 +372,14 @@ function ClipItem({
   clip,
   semanticScore,
   renderSettingsActions,
+  onKeepFocus,
 }: {
   clip: Clip;
   semanticScore?: number;
   renderSettingsActions: () => JSX.Element;
+  onKeepFocus: (id: string) => void;
 }) {
+  const itemId = `clip-${clip.id}`;
   const sensitive = clip.is_sensitive === 1;
   const isUrl = clip.content_type === "url" && !sensitive;
   const openUrl = isUrl ? clip.content.trim() : (clip.source_url ?? null);
@@ -389,6 +402,7 @@ function ClipItem({
 
   return (
     <List.Item
+      id={itemId}
       icon={clipListIcon(clip, { hexColor, isShell })}
       title={
         sensitive
@@ -471,6 +485,7 @@ function ClipItem({
               title="Paste to Active App"
               icon={Icon.Document}
               onAction={async () => {
+                onKeepFocus(itemId);
                 await Clipboard.paste(clip.content);
                 await showHUD("Pasted ✓");
               }}
@@ -480,6 +495,7 @@ function ClipItem({
               icon={Icon.Clipboard}
               shortcut={{ modifiers: ["cmd"], key: "c" }}
               onAction={async () => {
+                onKeepFocus(itemId);
                 await Clipboard.copy(clip.content);
                 showToast({ style: Toast.Style.Success, title: "Copied!" });
               }}
