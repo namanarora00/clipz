@@ -399,6 +399,11 @@ function ClipItem({
       : isUrl && pageTitle
         ? `## ${pageTitle}\n\n${clip.content}`
         : buildDetailMarkdown(clip);
+  const sourceHint = openUrl
+    ? `⌘O opens source page${clip.source_app ? ` · ${clip.source_app}` : ""}`
+    : fileLink
+      ? "⌘O opens source file"
+      : undefined;
 
   return (
     <List.Item
@@ -409,6 +414,7 @@ function ClipItem({
           ? `${detectSecretType(clip.content)}  ${maskSensitiveContent(clip.content)}`
           : truncate(clip.content, 72)
       }
+      subtitle={sourceHint}
       accessories={[
         ...(openUrl || fileLink
           ? [
@@ -488,6 +494,26 @@ function ClipItem({
       }
       actions={
         <ActionPanel>
+          {(openUrl || fileLink) && (
+            <ActionPanel.Section>
+              {openUrl && (
+                <Action
+                  title="Open Source Page"
+                  icon={Icon.Globe}
+                  shortcut={{ modifiers: ["cmd"], key: "o" }}
+                  onAction={() => open(openUrl)}
+                />
+              )}
+              {fileLink && (
+                <Action
+                  title="Open in Cursor"
+                  icon={Icon.Code}
+                  shortcut={{ modifiers: ["cmd"], key: "o" }}
+                  onAction={() => open(fileLink)}
+                />
+              )}
+            </ActionPanel.Section>
+          )}
           <ActionPanel.Section>
             <Action
               title="Paste to Active App"
@@ -568,24 +594,6 @@ function ClipItem({
               />
             </ActionPanel.Section>
           )}
-          <ActionPanel.Section>
-            {openUrl && (
-              <Action
-                title="Open Source Page"
-                icon={Icon.Globe}
-                shortcut={{ modifiers: ["cmd"], key: "o" }}
-                onAction={() => open(openUrl)}
-              />
-            )}
-            {fileLink && (
-              <Action
-                title="Open in Cursor"
-                icon={Icon.Code}
-                shortcut={{ modifiers: ["cmd"], key: "e" }}
-                onAction={() => open(fileLink)}
-              />
-            )}
-          </ActionPanel.Section>
           <ActionPanel.Section title="Settings">
             {renderSettingsActions()}
           </ActionPanel.Section>
