@@ -801,7 +801,7 @@ function AnswerCard({
             ? "Press ↵ to search"
             : answer
               ? hasMatches
-                ? `Found ${shownCount} clickable match${shownCount !== 1 ? "es" : ""}`
+                ? `Found ${shownCount} result${shownCount !== 1 ? "s" : ""}`
                 : truncate(answer, 80)
               : "Ask anything…";
 
@@ -876,33 +876,19 @@ function SourceItem({ clip }: { clip: ClipWithContext }) {
       : clip.source_app;
   const title = sensitive
     ? `${detectSecretType(clip.content)}  ${maskSensitiveContent(clip.content)}`
-    : sourceLabel && (isUrl || clip.source_url || clip.source_file)
-      ? sourceLabel
-      : truncate(clip.content, 72);
-  const subtitle =
-    sensitive || title === truncate(clip.content, 72)
-      ? undefined
-      : truncate(clip.content, 90);
+    : truncate(clip.content, 90);
+  const subtitleParts = [
+    openUrl || fileLink ? "⌘O opens source" : null,
+    sourceLabel,
+    clip.source_app && clip.source_app !== sourceLabel ? clip.source_app : null,
+    relativeTime(clip.created_at),
+  ].filter(Boolean);
 
   return (
     <List.Item
       icon={clipListIcon(clip, { hexColor, isShell })}
       title={title}
-      subtitle={subtitle}
-      accessories={[
-        ...(openUrl || fileLink
-          ? [
-              {
-                text: "⌘O",
-                tooltip: openUrl ? "Open source page" : "Open source file",
-              },
-            ]
-          : []),
-        ...(clip.source_app
-          ? [{ text: clip.source_app, tooltip: "Source app" }]
-          : []),
-        { text: relativeTime(clip.created_at), tooltip: "Copied" },
-      ]}
+      subtitle={subtitleParts.join("  ·  ")}
       detail={
         <List.Item.Detail
           markdown={detailMd}
