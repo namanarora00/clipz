@@ -351,6 +351,10 @@ function formatWebsite(url: string): string {
   }
 }
 
+function itemLabel(count: number): string {
+  return `${count} item${count !== 1 ? "s" : ""}`;
+}
+
 async function synthesize(
   question: string,
   clips: Clip[],
@@ -566,7 +570,21 @@ export function AIResults({ initialQuery = "" }: { initialQuery?: string }) {
       searchBarPlaceholder="Ask anything… press ↵ to search"
       navigationTitle="Clipz AI"
     >
-      <List.Section title="Answer">
+      {sourcesToShow.length > 0 && (
+        <List.Section
+          title="Answer"
+          subtitle={
+            relevantIds && relevantIds.length > 0
+              ? `${sourcesToShow.length} clickable match${sourcesToShow.length !== 1 ? "es" : ""}`
+              : `${sourcesToShow.length} recent match${sourcesToShow.length !== 1 ? "es" : ""}`
+          }
+        >
+          {sourcesToShow.map((c) => (
+            <SourceItem key={c.id} clip={c} />
+          ))}
+        </List.Section>
+      )}
+      <List.Section title={sourcesToShow.length > 0 ? "AI Note" : "Answer"}>
         <AnswerCard
           answer={answer}
           planPhase={planPhase}
@@ -575,22 +593,9 @@ export function AIResults({ initialQuery = "" }: { initialQuery?: string }) {
           totalCount={clips.length}
           shownCount={sourcesToShow.length}
           relevantCount={relevantIds?.length ?? clips.length}
+          hasMatches={sourcesToShow.length > 0}
         />
       </List.Section>
-      {sourcesToShow.length > 0 && (
-        <List.Section
-          title="Sources"
-          subtitle={
-            relevantIds && relevantIds.length > 0
-              ? `${sourcesToShow.length} relevant of ${clips.length} retrieved`
-              : `${sourcesToShow.length} of ${clips.length}`
-          }
-        >
-          {sourcesToShow.map((c) => (
-            <SourceItem key={c.id} clip={c} />
-          ))}
-        </List.Section>
-      )}
     </List>
   );
 }
@@ -605,6 +610,7 @@ function AnswerCard({
   totalCount,
   shownCount,
   relevantCount,
+  hasMatches,
 }: {
   answer: string | null;
   planPhase: "planning" | "fetching" | "answering" | null;
@@ -613,6 +619,7 @@ function AnswerCard({
   totalCount: number;
   shownCount: number;
   relevantCount: number;
+  hasMatches: boolean;
 }) {
   const title =
     planPhase === "planning"
@@ -624,7 +631,9 @@ function AnswerCard({
           : isPending
             ? "Press ↵ to search"
             : answer
-              ? truncate(answer, 80)
+              ? hasMatches
+                ? `Found ${shownCount} clickable match${shownCount !== 1 ? "es" : ""}`
+                : truncate(answer, 80)
               : "Ask anything…";
 
   const md =
@@ -637,7 +646,7 @@ function AnswerCard({
           : isPending
             ? "*Press **↵** to run this search.*"
             : answer
-              ? `${answer}\n\n---\n*${relevantCount > 0 ? `${shownCount} relevant source${shownCount !== 1 ? "s" : ""}` : `${totalCount} item${totalCount !== 1 ? "s" : ""}`} searched*`
+              ? `${answer}\n\n---\n*${hasMatches ? `Open/copy the matches above. ${relevantCount > 0 ? `${shownCount} shown from ${itemLabel(relevantCount)}` : `${shownCount} shown`}.` : `${itemLabel(totalCount)} searched.`}*`
               : "*Type a question and press **↵** to search.*";
 
   return (
@@ -691,16 +700,32 @@ function SourceItem({ clip }: { clip: ClipWithContext }) {
   const fileLink = clip.source_file?.startsWith("/")
     ? `cursor://file/${clip.source_file}`
     : null;
+  const sourceLabel = openUrl
+    ? formatWebsite(openUrl)
+    : clip.source_file
+      ? clip.source_file.split("/").pop()
+      : clip.source_app;
+  const title = sensitive
+    ? `${detectSecretType(clip.content)}  ${maskSensitiveContent(clip.content)}`
+    : sourceLabel && (isUrl || clip.source_url || clip.source_file)
+      ? sourceLabel
+      : truncate(clip.content, 72);
+  const subtitle =
+    sensitive || title === truncate(clip.content, 72)
+      ? undefined
+      : truncate(clip.content, 90);
 
   return (
     <List.Item
       icon={clipListIcon(clip, { hexColor, isShell })}
-      title={
-        sensitive
-          ? `${detectSecretType(clip.content)}  ${maskSensitiveContent(clip.content)}`
-          : truncate(clip.content, 72)
-      }
-      accessories={[]}
+      title={title}
+      subtitle={subtitle}
+      accessories={[
+        ...(clip.source_app
+          ? [{ text: clip.source_app, tooltip: "Source app" }]
+          : []),
+        { text: relativeTime(clip.created_at), tooltip: "Copied" },
+      ]}
       detail={
         <List.Item.Detail
           markdown={detailMd}
@@ -745,6 +770,22 @@ function SourceItem({ clip }: { clip: ClipWithContext }) {
       }
       actions={
         <ActionPanel>
+          {openUrl && (
+            <Action
+              title="Open Source Page"
+              icon={Icon.Globe}
+              shortcut={{ modifiers: ["cmd"], key: "o" }}
+              onAction={() => open(openUrl)}
+            />
+          )}
+          {fileLink && (
+            <Action
+              title="Open in Cursor"
+              icon={Icon.Code}
+              shortcut={{ modifiers: ["cmd"], key: "e" }}
+              onAction={() => open(fileLink)}
+            />
+          )}
           <Action
             title="Paste to Active App"
             icon={Icon.Document}
@@ -802,22 +843,6 @@ function SourceItem({ clip }: { clip: ClipWithContext }) {
                   `tell application "Terminal"\ndo script "${safe}"\nactivate\nend tell`,
                 );
               }}
-            />
-          )}
-          {openUrl && (
-            <Action
-              title="Open Source Page"
-              icon={Icon.Globe}
-              shortcut={{ modifiers: ["cmd"], key: "o" }}
-              onAction={() => open(openUrl)}
-            />
-          )}
-          {fileLink && (
-            <Action
-              title="Open in Cursor"
-              icon={Icon.Code}
-              shortcut={{ modifiers: ["cmd"], key: "e" }}
-              onAction={() => open(fileLink)}
             />
           )}
         </ActionPanel>
