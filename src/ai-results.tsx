@@ -174,7 +174,9 @@ Each strategy is a JSON object with optional fields:
 
 Rules:
 - Always include a broad fallback strategy like {} or {"since": <one week ago>}
-- For website/URL queries: include {"content_type":"url"} and a terms strategy with the domain/site name
+- For broad website/page/link questions like "what websites was I looking at", "what site was that", or misspellings like "wesbite": include {"content_type":"url"}, include a broad Chrome/browser strategy, and avoid narrow search_terms unless the user names a specific domain/topic
+- For specific website/URL queries with a named topic/domain: include {"content_type":"url"} and a terms strategy with the domain/site/topic name
+- If the user asks "what was I looking at / using / copying" without a specific keyword, do not over-constrain. Use broad recency/app/content-type strategies
 - For code queries: include {"content_type":"code"} and a terms strategy
 - For "today"/"this week" queries: use since timestamps
 - For app-specific queries: include source_app
@@ -287,6 +289,9 @@ function scoreClip(clip: Clip, query: string): number {
 function formatClipForContext(clip: Clip, idx: number): string {
   const time = relativeTime(clip.created_at);
   const app = clip.source_app ? ` · ${clip.source_app}` : "";
+  const source = clip.source_url
+    ? ` · source: ${formatWebsite(clip.source_url)}`
+    : "";
 
   if (clip.is_sensitive) {
     return `[${idx}] [${detectSecretType(clip.content)}]${app} · ${time}`;
@@ -299,19 +304,19 @@ function formatClipForContext(clip: Clip, idx: number): string {
       } catch {
         /* */
       }
-      return `[${idx}] URL${domain}${app} · ${time}: ${truncate(clip.content.trim(), 120)}`;
+      return `[${idx}] URL${domain}${app}${source} · ${time}: ${truncate(clip.content.trim(), 120)}`;
     }
     case "code": {
       const lang = clip.content_lang ? ` (${clip.content_lang})` : "";
       const file = clip.source_file
         ? ` · ${clip.source_file.split("/").pop()}`
         : "";
-      return `[${idx}] Code${lang}${file}${app} · ${time}: ${truncate(clip.content, 100)}`;
+      return `[${idx}] Code${lang}${file}${app}${source} · ${time}: ${truncate(clip.content, 100)}`;
     }
     case "email":
-      return `[${idx}] Email${app} · ${time}: ${clip.content.trim()}`;
+      return `[${idx}] Email${app}${source} · ${time}: ${clip.content.trim()}`;
     default:
-      return `[${idx}] Text${app} · ${time}: ${truncate(clip.content, 120)}`;
+      return `[${idx}] Text${app}${source} · ${time}: ${truncate(clip.content, 120)}`;
   }
 }
 
@@ -332,12 +337,6 @@ function isBroadWebsiteQuestion(question: string): boolean {
   );
 }
 
-function urlForClip(clip: Clip): string | null {
-  if (clip.content_type === "url" && !clip.is_sensitive)
-    return clip.content.trim();
-  return clip.source_url ?? null;
-}
-
 function formatWebsite(url: string): string {
   try {
     const parsed = new URL(url);
@@ -351,37 +350,6 @@ function formatWebsite(url: string): string {
   }
 }
 
-function synthesizeWebsiteList(clips: Clip[]): SynthResult {
-  const seen = new Set<string>();
-  const matches: { label: string; index: number }[] = [];
-
-  clips
-    .map((clip, index) => ({ clip, index }))
-    .filter(({ clip }) => urlForClip(clip))
-    .sort((a, b) => b.clip.created_at - a.clip.created_at)
-    .forEach(({ clip, index }) => {
-      const url = urlForClip(clip);
-      if (!url) return;
-      const key = url.split("#")[0].replace(/\/$/, "");
-      if (seen.has(key)) return;
-      seen.add(key);
-      matches.push({ label: formatWebsite(url), index });
-    });
-
-  if (matches.length === 0) {
-    return {
-      answer: "I found clipboard items, but no website/page sources in them.",
-      relevantIndices: [],
-    };
-  }
-
-  const shown = matches.slice(0, 10);
-  return {
-    answer: `Recent websites/pages I found:\n${shown.map((match) => `- ${match.label}`).join("\n")}`,
-    relevantIndices: shown.map((match) => match.index),
-  };
-}
-
 async function synthesize(
   question: string,
   clips: Clip[],
@@ -392,10 +360,6 @@ async function synthesize(
       answer: "No clipboard items found for this query.",
       relevantIndices: [],
     };
-
-  if (isBroadWebsiteQuestion(question)) {
-    return synthesizeWebsiteList(clips);
-  }
 
   const sorted = [...clips]
     .map((c, i) => ({ c, i, score: scoreClip(c, question) }))
@@ -416,6 +380,12 @@ Rules:
 - Be specific: name actual URLs, domains, apps, filenames
 - [sensitive] entries are redacted credentials — you can confirm they exist but not reveal content
 - If nothing is relevant, say so briefly
+- First infer the user's intent:
+  - Broad/list intent: questions like "what websites was I looking at", "what links did I copy", "what was I working on", "show code snippets", or typo versions like "wesbite". For these, return a concise list of multiple plausible items, usually the most recent 5–10. Do NOT pick a single winner unless the evidence clearly points to only one.
+  - Specific/identify intent: questions with a unique clue like "money website", "github repo", "jwt from yesterday", "the red page". For these, give the best match plus nearby alternatives if there is ambiguity.
+- For website/page/link questions, use both URL items and source: fields on text/code items. A copied text snippet from a page still means that page is relevant.
+- If several items are plausible, say "Could be:" and list them. Better to show candidates than hallucinate certainty.
+- The "relevant" array must include every item index you mention in the answer. If you list 6 websites, include all 6 indices.
 - Return JSON with keys "answer" (string) and "relevant" (array of item indices that directly support your answer)
 
 Q: ${question}
