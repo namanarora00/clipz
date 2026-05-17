@@ -25,6 +25,7 @@ import { AIResults } from "./ai-results";
 import { SemanticResult, semanticSearch } from "./semantic-search";
 import {
   buildDetailMarkdown,
+  clipListIcon,
   detectHexColor,
   detectSecretType,
   groupByTime,
@@ -388,11 +389,7 @@ function ClipItem({
 
   return (
     <List.Item
-      icon={
-        hexColor
-          ? { source: Icon.CircleFilled, tintColor: hexColor }
-          : undefined
-      }
+      icon={clipListIcon(clip, { hexColor, isShell })}
       title={
         sensitive
           ? `${detectSecretType(clip.content)}  ${maskSensitiveContent(clip.content)}`

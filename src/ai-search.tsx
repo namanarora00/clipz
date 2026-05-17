@@ -16,8 +16,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Clip, DB_PATH } from "./db";
 import {
   buildDetailMarkdown,
-  clipIcon,
+  clipListIcon,
   clipSubtitle,
+  detectHexColor,
+  isShellCommand,
   relativeTime,
   truncate,
 } from "./utils";
@@ -370,10 +372,12 @@ function AnswerItem({
 function SourceClipItem({ clip }: { clip: Clip }) {
   const sensitive = clip.is_sensitive === 1;
   const isUrl = clip.content_type === "url" && !sensitive;
+  const hexColor = sensitive ? null : detectHexColor(clip.content);
+  const isShell = !sensitive && !hexColor && isShellCommand(clip.content);
 
   return (
     <List.Item
-      icon={clipIcon(clip.content_type, clip.is_sensitive)}
+      icon={clipListIcon(clip, { hexColor, isShell })}
       title={sensitive ? "Sensitive item" : truncate(clip.content, 70)}
       subtitle={clipSubtitle(clip)}
       accessories={[

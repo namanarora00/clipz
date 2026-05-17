@@ -33,6 +33,33 @@ export function clipIcon(
   }
 }
 
+export function clipListIcon(
+  clip: Clip,
+  options: { hexColor?: string | null; isShell?: boolean } = {},
+): { source: Icon; tintColor?: Color | string } {
+  if (options.hexColor) {
+    return { source: Icon.CircleFilled, tintColor: options.hexColor };
+  }
+  if (clip.is_sensitive) return { source: Icon.Lock, tintColor: Color.Red };
+  if (options.isShell)
+    return { source: Icon.Terminal, tintColor: Color.Yellow };
+
+  switch (clip.content_type) {
+    case "url":
+      return { source: Icon.Globe, tintColor: Color.Blue };
+    case "code":
+      return { source: Icon.Code, tintColor: Color.Purple };
+    case "email":
+      return { source: Icon.Envelope, tintColor: Color.Green };
+    default:
+      if (clip.source_file)
+        return { source: Icon.Document, tintColor: Color.Blue };
+      if (clip.source_app)
+        return { source: Icon.AppWindow, tintColor: Color.SecondaryText };
+      return { source: Icon.Text, tintColor: Color.SecondaryText };
+  }
+}
+
 export function clipSubtitle(clip: Clip): string {
   if (clip.is_sensitive) return "sensitive";
   switch (clip.content_type) {

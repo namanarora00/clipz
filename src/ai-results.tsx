@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Clip, DB_PATH } from "./db";
 import {
   buildDetailMarkdown,
+  clipListIcon,
   detectHexColor,
   detectSecretType,
   hexToHsl,
@@ -693,11 +694,7 @@ function SourceItem({ clip }: { clip: ClipWithContext }) {
 
   return (
     <List.Item
-      icon={
-        hexColor
-          ? { source: Icon.CircleFilled, tintColor: hexColor }
-          : undefined
-      }
+      icon={clipListIcon(clip, { hexColor, isShell })}
       title={
         sensitive
           ? `${detectSecretType(clip.content)}  ${maskSensitiveContent(clip.content)}`
