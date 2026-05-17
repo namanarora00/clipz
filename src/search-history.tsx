@@ -494,26 +494,6 @@ function ClipItem({
       }
       actions={
         <ActionPanel>
-          {(openUrl || fileLink) && (
-            <ActionPanel.Section>
-              {openUrl && (
-                <Action
-                  title="Open Source Page"
-                  icon={Icon.Globe}
-                  shortcut={{ modifiers: ["cmd"], key: "o" }}
-                  onAction={() => open(openUrl)}
-                />
-              )}
-              {fileLink && (
-                <Action
-                  title="Open in Cursor"
-                  icon={Icon.Code}
-                  shortcut={{ modifiers: ["cmd"], key: "o" }}
-                  onAction={() => open(fileLink)}
-                />
-              )}
-            </ActionPanel.Section>
-          )}
           <ActionPanel.Section>
             <Action
               title="Paste to Active App"
@@ -535,6 +515,26 @@ function ClipItem({
               }}
             />
           </ActionPanel.Section>
+          {(openUrl || fileLink) && (
+            <ActionPanel.Section>
+              {openUrl && (
+                <Action
+                  title="Open Source Page"
+                  icon={Icon.Globe}
+                  shortcut={{ modifiers: ["cmd"], key: "o" }}
+                  onAction={() => open(openUrl)}
+                />
+              )}
+              {fileLink && (
+                <Action
+                  title="Open in Cursor"
+                  icon={Icon.Code}
+                  shortcut={{ modifiers: ["cmd"], key: "o" }}
+                  onAction={() => open(fileLink)}
+                />
+              )}
+            </ActionPanel.Section>
+          )}
           {hexColor && (
             <ActionPanel.Section title="Copy Color As">
               <Action
