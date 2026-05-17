@@ -125,6 +125,32 @@ export default function SearchHistory() {
     push(<AIResults initialQuery={searchText} />);
   }
 
+  async function setSync(enabled: boolean) {
+    setICloudSyncEnabled(enabled);
+    setSyncToICloud(enabled);
+    setDbPath(resolveDBPath());
+    await restartDaemon();
+    await showHUD(`iCloud sync ${enabled ? "enabled" : "disabled"}`);
+  }
+
+  const renderSettingsActions = () => (
+    <>
+      <Action
+        title={syncToICloud ? "Disable Cloud Sync" : "Enable Cloud Sync"}
+        icon={syncToICloud ? Icon.XMarkCircle : Icon.Cloud}
+        onAction={() => setSync(!syncToICloud)}
+      />
+      <Action
+        title="Restart Clipz Daemon"
+        icon={Icon.RotateClockwise}
+        onAction={async () => {
+          await restartDaemon();
+          await showHUD("Clipz daemon restarted");
+        }}
+      />
+    </>
+  );
+
   const semanticIds = new Set(semanticResults.map((result) => result.clip.id));
   const textMatches = searchText.trim()
     ? clips.filter((clip) => !semanticIds.has(clip.id))
@@ -139,14 +165,6 @@ export default function SearchHistory() {
       navigationTitle="Clipz"
     >
       <List.Section>
-        <SyncItem
-          dbPath={dbPath}
-          syncToICloud={syncToICloud}
-          onChange={(enabled) => {
-            setSyncToICloud(enabled);
-            setDbPath(resolveDBPath());
-          }}
-        />
         {aiEnabled && (
           <List.Item
             icon={{ source: Icon.Stars, tintColor: Color.Purple }}
@@ -162,11 +180,16 @@ export default function SearchHistory() {
             }
             actions={
               <ActionPanel>
-                <Action
-                  title="Ask AI"
-                  icon={{ source: Icon.Stars, tintColor: Color.Purple }}
-                  onAction={askAI}
-                />
+                <ActionPanel.Section>
+                  <Action
+                    title="Ask AI"
+                    icon={{ source: Icon.Stars, tintColor: Color.Purple }}
+                    onAction={askAI}
+                  />
+                </ActionPanel.Section>
+                <ActionPanel.Section title="Settings">
+                  {renderSettingsActions()}
+                </ActionPanel.Section>
               </ActionPanel>
             }
           />
@@ -180,11 +203,16 @@ export default function SearchHistory() {
             subtitle="Start copying. Items appear here automatically."
             actions={
               <ActionPanel>
-                <Action
-                  title="Ask AI"
-                  icon={{ source: Icon.Stars, tintColor: Color.Purple }}
-                  onAction={askAI}
-                />
+                <ActionPanel.Section>
+                  <Action
+                    title="Ask AI"
+                    icon={{ source: Icon.Stars, tintColor: Color.Purple }}
+                    onAction={askAI}
+                  />
+                </ActionPanel.Section>
+                <ActionPanel.Section title="Settings">
+                  {renderSettingsActions()}
+                </ActionPanel.Section>
               </ActionPanel>
             }
           />
@@ -230,6 +258,7 @@ export default function SearchHistory() {
                   key={`semantic-${result.clip.id}`}
                   clip={result.clip}
                   semanticScore={result.score}
+                  renderSettingsActions={renderSettingsActions}
                 />
               ))}
             </List.Section>
@@ -240,7 +269,11 @@ export default function SearchHistory() {
               subtitle={`${textMatches.length}`}
             >
               {textMatches.map((c) => (
-                <ClipItem key={c.id} clip={c} />
+                <ClipItem
+                  key={c.id}
+                  clip={c}
+                  renderSettingsActions={renderSettingsActions}
+                />
               ))}
             </List.Section>
           )}
@@ -253,12 +286,22 @@ export default function SearchHistory() {
             subtitle={String(g.clips.length)}
           >
             {g.clips.map((c) => (
-              <ClipItem key={c.id} clip={c} />
+              <ClipItem
+                key={c.id}
+                clip={c}
+                renderSettingsActions={renderSettingsActions}
+              />
             ))}
           </List.Section>
         ))
       ) : (
-        clips.map((c) => <ClipItem key={c.id} clip={c} />)
+        clips.map((c) => (
+          <ClipItem
+            key={c.id}
+            clip={c}
+            renderSettingsActions={renderSettingsActions}
+          />
+        ))
       )}
     </List>
   );
@@ -282,51 +325,6 @@ tell application "Terminal"
   activate
 end tell
 `);
-}
-
-function SyncItem({
-  dbPath,
-  syncToICloud,
-  onChange,
-}: {
-  dbPath: string;
-  syncToICloud: boolean;
-  onChange: (enabled: boolean) => void;
-}) {
-  async function setSync(enabled: boolean) {
-    setICloudSyncEnabled(enabled);
-    onChange(enabled);
-    await restartDaemon();
-    await showHUD(`iCloud sync ${enabled ? "enabled" : "disabled"}`);
-  }
-
-  return (
-    <List.Item
-      icon={{
-        source: syncToICloud ? Icon.Cloud : Icon.HardDrive,
-        tintColor: syncToICloud ? Color.Blue : Color.SecondaryText,
-      }}
-      title={`iCloud Sync: ${syncToICloud ? "On" : "Off"}`}
-      subtitle={dbPath}
-      actions={
-        <ActionPanel>
-          <Action
-            title={syncToICloud ? "Disable Cloud Sync" : "Enable Cloud Sync"}
-            icon={syncToICloud ? Icon.XMarkCircle : Icon.Cloud}
-            onAction={() => setSync(!syncToICloud)}
-          />
-          <Action
-            title="Restart Clipz Daemon"
-            icon={Icon.RotateClockwise}
-            onAction={async () => {
-              await restartDaemon();
-              await showHUD("Clipz daemon restarted");
-            }}
-          />
-        </ActionPanel>
-      }
-    />
-  );
 }
 
 function usePageTitle(url: string | null): string | null {
@@ -362,9 +360,11 @@ function usePageTitle(url: string | null): string | null {
 function ClipItem({
   clip,
   semanticScore,
+  renderSettingsActions,
 }: {
   clip: Clip;
   semanticScore?: number;
+  renderSettingsActions: () => JSX.Element;
 }) {
   const sensitive = clip.is_sensitive === 1;
   const isUrl = clip.content_type === "url" && !sensitive;
@@ -572,6 +572,9 @@ function ClipItem({
                 onAction={() => open(fileLink)}
               />
             )}
+          </ActionPanel.Section>
+          <ActionPanel.Section title="Settings">
+            {renderSettingsActions()}
           </ActionPanel.Section>
         </ActionPanel>
       }
