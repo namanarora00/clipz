@@ -508,12 +508,17 @@ function rankSources(
   const ranked = clips
     .map((clip, index) => ({
       clip,
-      score: scoreClip(clip, question) + (relevant.has(index) ? 25 : 0),
+      score: scoreClip(clip, question) + (relevant.has(index) ? 8 : 0),
     }))
     .sort((a, b) => b.score - a.score || b.clip.created_at - a.clip.created_at);
 
   const positive = ranked.filter((entry) => entry.score > 0);
-  const pool = positive.length > 0 ? positive : ranked;
+  const topScore = positive[0]?.score ?? 0;
+  const cutoff =
+    topScore >= 20 ? topScore * 0.45 : topScore >= 10 ? topScore * 0.35 : 1;
+  const filtered = positive.filter((entry) => entry.score >= cutoff);
+  const pool =
+    filtered.length > 0 ? filtered : positive.length > 0 ? positive : ranked;
   return pool.slice(0, limit).map((entry) => entry.clip);
 }
 
@@ -707,6 +712,8 @@ export function AIResults({ initialQuery = "" }: { initialQuery?: string }) {
     relevantIds,
     sourceLimit,
   );
+  const bestMatch = sourcesToShow[0];
+  const foundResults = sourcesToShow.slice(1);
 
   const isPending =
     !isPlanLoading &&
@@ -731,16 +738,17 @@ export function AIResults({ initialQuery = "" }: { initialQuery?: string }) {
       searchBarPlaceholder="Ask anything… press ↵ to search"
       navigationTitle="Clipz AI"
     >
-      {sourcesToShow.length > 0 && (
+      {bestMatch && (
+        <List.Section title="Best Match">
+          <SourceItem key={bestMatch.id} clip={bestMatch} />
+        </List.Section>
+      )}
+      {foundResults.length > 0 && (
         <List.Section
-          title="Answer"
-          subtitle={
-            relevantIds && relevantIds.length > 0
-              ? `${sourcesToShow.length} clickable match${sourcesToShow.length !== 1 ? "es" : ""}`
-              : `${sourcesToShow.length} recent match${sourcesToShow.length !== 1 ? "es" : ""}`
-          }
+          title="Found Results"
+          subtitle={`${foundResults.length} more`}
         >
-          {sourcesToShow.map((c) => (
+          {foundResults.map((c) => (
             <SourceItem key={c.id} clip={c} />
           ))}
         </List.Section>
