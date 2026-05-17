@@ -195,8 +195,28 @@ export default function SearchHistory() {
             <List.Section title="Semantic Search">
               <List.Item
                 icon={{ source: Icon.ExclamationMark, tintColor: Color.Yellow }}
-                title="Semantic search is unavailable"
+                title={
+                  semanticError.includes("Embedding model missing")
+                    ? "Embedding Model Missing"
+                    : "Semantic Search Unavailable"
+                }
                 subtitle={semanticError}
+                actions={
+                  <ActionPanel>
+                    {semanticError.includes("Embedding model missing") && (
+                      <Action
+                        title="Pull Embedding Model"
+                        icon={Icon.Download}
+                        onAction={async () => {
+                          await pullEmbeddingModel(
+                            prefs.embeddingModel || "nomic-embed-text",
+                          );
+                          await showHUD("Pulling embedding model in Terminal");
+                        }}
+                      />
+                    )}
+                  </ActionPanel>
+                }
               />
             </List.Section>
           )}
@@ -247,6 +267,20 @@ export default function SearchHistory() {
 async function restartDaemon() {
   await runAppleScript(`
 do shell script "launchctl unload ~/Library/LaunchAgents/com.clipz.daemon.plist 2>/dev/null || true; launchctl load ~/Library/LaunchAgents/com.clipz.daemon.plist 2>/dev/null || true"
+`);
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+async function pullEmbeddingModel(model: string) {
+  const safeModel = shellQuote(model || "nomic-embed-text");
+  await runAppleScript(`
+tell application "Terminal"
+  do script "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH; ollama pull ${safeModel}"
+  activate
+end tell
 `);
 }
 

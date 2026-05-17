@@ -69,16 +69,25 @@ CREATE INDEX IF NOT EXISTS idx_clip_embeddings_model ON clip_embeddings(model);
 }
 
 async function embed(text: string, prefs: SemanticPrefs): Promise<number[]> {
+  const model = prefs.embeddingModel || "nomic-embed-text";
   const res = await fetch(`${prefs.ollamaUrl}/api/embeddings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: prefs.embeddingModel || "nomic-embed-text",
+      model,
       prompt: text.slice(0, 4000),
     }),
     signal: AbortSignal.timeout(20_000),
   });
-  if (!res.ok) throw new Error(`Ollama embeddings HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    if (res.status === 404 && body.includes("not found")) {
+      throw new Error(`Embedding model missing. Run: ollama pull ${model}`);
+    }
+    throw new Error(
+      `Ollama embeddings HTTP ${res.status}${body ? `: ${body}` : ""}`,
+    );
+  }
   const json = (await res.json()) as { embedding?: number[] };
   if (!Array.isArray(json.embedding)) throw new Error("No embedding returned");
   return json.embedding;
