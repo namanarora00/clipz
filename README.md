@@ -10,7 +10,7 @@ No hosted API. No mystery clipboard cloud. Search runs locally. AI defaults to `
 
 - Search clipboard history without pretending one clipboard slot is a personality
 - Track source apps, browser URLs, and editor files when possible
-- Semantic search with local Ollama embeddings, because exact keyword matching was getting smug
+- Semantic search with EmbeddingGemma 2 running inside the daemon, because exact keyword matching was getting smug. No Ollama needed for this part
 - Jump back to copied web text instead of opening a page and saying "good luck"
 - Ask Ollama questions about your clipboard history, because scrolling is manual labor
 - Auto-hide obvious secrets like API keys, tokens, private keys, JWTs, and env vars before you demo your screen like a genius
@@ -27,6 +27,7 @@ Secret detection is best-effort: a seatbelt, not a vault. Search through your AP
 - Local: `~/.clipz/history.db`
 - iCloud sync: `~/Library/Mobile Documents/com~apple~CloudDocs/Clipz/history.db`
 - Config: `~/.clipz/config.json`
+- Embedding model: `~/.clipz/models/embeddinggemma-2-Q8_0.gguf` (vectors live in the same database, so they sync too)
 
 No artificial item limit. Your real limits are disk space, iCloud storage if enabled, SQLite, and your tolerance for preserving every weird thing you copied at 2 AM for "later."
 
@@ -36,7 +37,7 @@ No artificial item limit. Your real limits are disk space, iCloud storage if ena
 bash scripts/setup.sh
 ```
 
-That installs Homebrew when needed, Node deps, Raycast, the daemon, Ollama, the default chat model, the embedding model, and builds the extension. Ridiculous amount of ceremony for remembering text, but here we are. Then run:
+That installs Homebrew when needed, Node deps, Raycast, the daemon, the EmbeddingGemma 2 model (~300 MB), Ollama, the default chat model, and builds the extension. Ridiculous amount of ceremony for remembering text, but here we are. Then run:
 
 ```bash
 npm run dev

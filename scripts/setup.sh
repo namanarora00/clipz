@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MODEL="${OLLAMA_MODEL:-qwen2.5:3b}"
-EMBEDDING_MODEL="${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 
 log() {
@@ -104,10 +103,8 @@ if have ollama; then
 
   if curl -fsS "$OLLAMA_URL/api/tags" >/dev/null 2>&1; then
     ollama pull "$MODEL"
-    log "Pulling Ollama embedding model: $EMBEDDING_MODEL"
-    ollama pull "$EMBEDDING_MODEL"
   else
-    warn "Ollama did not answer at $OLLAMA_URL. Start Ollama and run: ollama pull $MODEL && ollama pull $EMBEDDING_MODEL"
+    warn "Ollama did not answer at $OLLAMA_URL. Start Ollama and run: ollama pull $MODEL"
   fi
 fi
 

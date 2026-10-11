@@ -41,8 +41,6 @@ import { join } from "path";
 
 interface Prefs {
   aiMode: string;
-  ollamaUrl: string;
-  embeddingModel: string;
 }
 
 export default function SearchHistory() {
@@ -81,10 +79,7 @@ export default function SearchHistory() {
     let cancelled = false;
     setIsSemanticLoading(true);
     const timer = setTimeout(() => {
-      semanticSearch(dbPath, query, {
-        ollamaUrl: prefs.ollamaUrl,
-        embeddingModel: prefs.embeddingModel || "nomic-embed-text",
-      })
+      semanticSearch(dbPath, query)
         .then((results) => {
           if (cancelled) return;
           setSemanticResults(results);
@@ -106,7 +101,7 @@ export default function SearchHistory() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchText, dbPath, prefs.ollamaUrl, prefs.embeddingModel]);
+  }, [searchText, dbPath]);
 
   if (permissionView) return permissionView;
 
@@ -230,26 +225,18 @@ export default function SearchHistory() {
               <List.Item
                 id="semantic-error"
                 icon={{ source: Icon.ExclamationMark, tintColor: Color.Yellow }}
-                title={
-                  semanticError.includes("Embedding model missing")
-                    ? "Embedding Model Missing"
-                    : "Semantic Search Unavailable"
-                }
+                title="Semantic Search Unavailable"
                 subtitle={semanticError}
                 actions={
                   <ActionPanel>
-                    {semanticError.includes("Embedding model missing") && (
-                      <Action
-                        title="Pull Embedding Model"
-                        icon={Icon.Download}
-                        onAction={async () => {
-                          await pullEmbeddingModel(
-                            prefs.embeddingModel || "nomic-embed-text",
-                          );
-                          await showHUD("Pulling embedding model in Terminal");
-                        }}
-                      />
-                    )}
+                    <Action
+                      title="Restart Daemon"
+                      icon={Icon.ArrowClockwise}
+                      onAction={async () => {
+                        await restartDaemon();
+                        await showHUD("Restarting Clipz daemon");
+                      }}
+                    />
                   </ActionPanel>
                 }
               />
@@ -321,20 +308,6 @@ export default function SearchHistory() {
 async function restartDaemon() {
   await runAppleScript(`
 do shell script "launchctl unload ~/Library/LaunchAgents/com.clipz.daemon.plist 2>/dev/null || true; launchctl load ~/Library/LaunchAgents/com.clipz.daemon.plist 2>/dev/null || true"
-`);
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
-async function pullEmbeddingModel(model: string) {
-  const safeModel = shellQuote(model || "nomic-embed-text");
-  await runAppleScript(`
-tell application "Terminal"
-  do script "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH; ollama pull ${safeModel}"
-  activate
-end tell
 `);
 }
 

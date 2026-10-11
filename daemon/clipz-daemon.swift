@@ -1,6 +1,8 @@
 import Foundation
 import AppKit
+import Accelerate
 import SQLite3
+import llama
 
 // MARK: - SQLite
 
@@ -16,6 +18,7 @@ final class DB {
         exec(syncsAcrossDevices ? "PRAGMA journal_mode=DELETE" : "PRAGMA journal_mode=WAL")
         exec("PRAGMA synchronous=NORMAL")
         exec("PRAGMA cache_size=-32000")
+        exec("PRAGMA busy_timeout=5000")
         migrate()
     }
 
@@ -58,6 +61,19 @@ final class DB {
         exec("ALTER TABLE clips ADD COLUMN content_html TEXT")
         exec("ALTER TABLE clips ADD COLUMN content_lang TEXT")
         exec("ALTER TABLE clips ADD COLUMN copy_count INTEGER NOT NULL DEFAULT 1")
+        exec("""
+        CREATE TABLE IF NOT EXISTS clip_embeddings (
+            clip_id      INTEGER PRIMARY KEY,
+            content_hash TEXT    NOT NULL,
+            model        TEXT    NOT NULL,
+            embedding    BLOB    NOT NULL,
+            created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX IF NOT EXISTS idx_clip_embeddings_model ON clip_embeddings(model);
+        CREATE TRIGGER IF NOT EXISTS clip_embeddings_ad AFTER DELETE ON clips BEGIN
+            DELETE FROM clip_embeddings WHERE clip_id = old.id;
+        END;
+        """)
     }
 
     func insert(content: String, hash: String, type: String, sensitive: Bool,
@@ -161,6 +177,9 @@ func isICloudSyncEnabled(configPath: URL) -> Bool {
 }
 
 func resolveDatabaseLocation() -> DatabaseLocation {
+    if let override = ProcessInfo.processInfo.environment["CLIPZ_DB"], !override.isEmpty {
+        return DatabaseLocation(path: override, syncsAcrossDevices: false)
+    }
     let fm = FileManager.default
     let home = fm.homeDirectoryForCurrentUser
     let localDir = home.appendingPathComponent(".clipz")
@@ -291,16 +310,423 @@ func detectType(_ content: String) -> String {
     return "text"
 }
 
+// MARK: - Semantic search
+
+let clipzDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".clipz")
+let embeddingModelPath = clipzDir.appendingPathComponent("models/embeddinggemma-2-Q8_0.gguf").path
+let socketPath = clipzDir.appendingPathComponent("daemon.sock").path
+// Bump the suffix whenever the document text format changes so clips get re-embedded.
+let embeddingModelKey = "embeddinggemma-2-q8_0/v1"
+
+struct SearchHit {
+    var id: Int64
+    var score: Float
+}
+
+/// Runs EmbeddingGemma 2 through llama.cpp and keeps every clip vector in memory.
+/// All model, DB and index access happens on `queue`, so nothing here needs locks.
+final class Embedder {
+    private let queue = DispatchQueue(label: "clipz.embed", qos: .userInitiated)
+    private let dbPath: String
+    private let log: (String) -> Void
+    private var db: OpaquePointer?
+    private var model: OpaquePointer?
+    private var ctx: OpaquePointer?
+    private var vocab: OpaquePointer?
+    private var dims = 0
+    // llama.cpp sizes its output buffer at n_vocab floats per input token (1 MB for Gemma's
+    // 262k vocab) and never shrinks it. Capping input and recreating the context after long
+    // inputs keeps the daemon near 200 MB instead of pinning gigabytes after one big clip.
+    private let maxTokens: Int32 = 512
+    private let longInputTokens: Int32 = 64
+    private var outputBufferGrown = false
+    private var loadError: String? = "Embedding model is still loading"
+    private var index: [Int64: [Float]] = [:]
+    private var backfillActive = false
+
+    init(dbPath: String, log: @escaping (String) -> Void) {
+        self.dbPath = dbPath
+        self.log = log
+    }
+
+    func start() {
+        queue.async {
+            self.load()
+            self.backfillActive = true
+            self.backfillChunk()
+        }
+    }
+
+    func requestBackfill() {
+        queue.async {
+            guard self.loadError == nil, !self.backfillActive else { return }
+            self.backfillActive = true
+            self.backfillChunk()
+        }
+    }
+
+    func search(_ query: String, limit: Int) -> Result<(hits: [SearchHit], indexing: Bool, indexed: Int), Error> {
+        queue.sync {
+            if let error = loadError { return .failure(DaemonError(error)) }
+            guard let q = embed("task: search result | query: \(query)") else {
+                return .failure(DaemonError("Could not embed query"))
+            }
+            resetContextIfGrown()
+            var hits: [SearchHit] = []
+            hits.reserveCapacity(index.count)
+            for (id, vector) in index {
+                var score: Float = 0
+                vDSP_dotpr(q, 1, vector, 1, &score, vDSP_Length(dims))
+                hits.append(SearchHit(id: id, score: score))
+            }
+            hits.sort { $0.score > $1.score }
+            return .success((Array(relevant(hits).prefix(limit)), backfillActive, index.count))
+        }
+    }
+
+    /// EmbeddingGemma scores unrelated clips around 0.55–0.65 and real matches only a little
+    /// higher, so a fixed cutoff doesn't work. Keep hits that stand out from this query's own
+    /// score distribution and sit close to the best match.
+    private func relevant(_ sorted: [SearchHit]) -> [SearchHit] {
+        guard let top = sorted.first?.score else { return [] }
+        let floor: Float = 0.63
+        guard sorted.count >= 30 else { return sorted.filter { $0.score >= max(floor, 0.66) } }
+
+        let scores = sorted.map(\.score)
+        var mean: Float = 0
+        var deviation: Float = 0
+        vDSP_normalize(scores, 1, nil, 1, &mean, &deviation, vDSP_Length(scores.count))
+        guard deviation > 0 else { return [] }
+        return sorted.filter {
+            $0.score >= floor && $0.score >= top - 0.08 && ($0.score - mean) / deviation >= 2
+        }
+    }
+
+    // MARK: Model
+
+    private func load() {
+        guard FileManager.default.fileExists(atPath: embeddingModelPath) else {
+            loadError = "Embedding model missing. Run daemon/install.sh"
+            log("⚠️  \(loadError!) (\(embeddingModelPath))")
+            return
+        }
+        llama_log_set({ level, text, _ in
+            if level.rawValue >= GGML_LOG_LEVEL_ERROR.rawValue, let text { fputs(String(cString: text), stderr) }
+        }, nil)
+        llama_backend_init()
+
+        var modelParams = llama_model_default_params()
+        modelParams.progress_callback = { _, _ in true } // silences the loading dots
+        guard let model = llama_model_load_from_file(embeddingModelPath, modelParams) else {
+            loadError = "Could not load embedding model"
+            log("⚠️  \(loadError!)")
+            return
+        }
+        self.model = model
+        guard let ctx = makeContext() else {
+            loadError = "Could not create embedding context"
+            log("⚠️  \(loadError!)")
+            return
+        }
+        self.ctx = ctx
+        vocab = llama_model_get_vocab(model)
+        dims = Int(llama_model_n_embd_out(model))
+
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+            loadError = "Could not open database for embeddings"
+            log("⚠️  \(loadError!)")
+            return
+        }
+        sqlite3_busy_timeout(db, 5000)
+        loadIndex()
+        loadError = nil
+        log("🧠 EmbeddingGemma 2 ready · \(dims)d · \(index.count) clips indexed")
+    }
+
+    private func makeContext() -> OpaquePointer? {
+        var params = llama_context_default_params()
+        params.embeddings = true
+        // Non-causal embedding models need the whole input in one micro-batch.
+        params.n_ctx = UInt32(maxTokens)
+        params.n_batch = UInt32(maxTokens)
+        params.n_ubatch = UInt32(maxTokens)
+        return llama_init_from_model(model, params)
+    }
+
+    private func resetContextIfGrown() {
+        guard outputBufferGrown, let old = ctx else { return }
+        llama_free(old)
+        ctx = makeContext()
+        outputBufferGrown = false
+        if ctx == nil {
+            loadError = "Could not recreate embedding context"
+            log("⚠️  \(loadError!)")
+        }
+    }
+
+    /// Returns an L2-normalised embedding, or nil if the text produced no tokens.
+    private func embed(_ text: String) -> [Float]? {
+        guard let ctx, let vocab, dims > 0 else { return nil }
+        // Only the first maxTokens matter. 4k characters always covers them and stays well
+        // under the token buffer even if every byte became its own token.
+        let clipped = text.count > 4_000 ? String(text.prefix(4_000)) : text
+        let utf8 = Array(clipped.utf8)
+        var tokens = [llama_token](repeating: 0, count: 16_384)
+        var count = utf8.withUnsafeBufferPointer { buf in
+            buf.withMemoryRebound(to: CChar.self) {
+                llama_tokenize(vocab, $0.baseAddress, Int32(buf.count), &tokens, Int32(tokens.count), true, true)
+            }
+        }
+        if count < 0 { return nil }
+        count = min(count, maxTokens)
+        guard count > 0 else { return nil }
+        if count > longInputTokens { outputBufferGrown = true }
+
+        llama_memory_clear(llama_get_memory(ctx), true)
+        var batch = llama_batch_init(count, 0, 1)
+        defer { llama_batch_free(batch) }
+        for i in 0..<Int(count) {
+            batch.token[i] = tokens[i]
+            batch.pos[i] = Int32(i)
+            batch.n_seq_id[i] = 1
+            batch.seq_id[i]![0] = 0
+            batch.logits[i] = 1
+        }
+        batch.n_tokens = count
+        guard llama_decode(ctx, batch) == 0, let out = llama_get_embeddings_seq(ctx, 0) else { return nil }
+
+        var vector = Array(UnsafeBufferPointer(start: out, count: dims))
+        var norm: Float = 0
+        vDSP_svesq(vector, 1, &norm, vDSP_Length(dims))
+        norm = sqrt(norm)
+        guard norm > 0 else { return nil }
+        vDSP_vsdiv(vector, 1, &norm, &vector, 1, vDSP_Length(dims))
+        return vector
+    }
+
+    private func documentText(content: String, app: String?, url: String?, file: String?) -> String {
+        var title: [String] = []
+        if let app, !app.isEmpty { title.append(app) }
+        if let url, let host = URL(string: url)?.host { title.append(host) }
+        if let file, !file.isEmpty { title.append((file as NSString).lastPathComponent) }
+        return "title: \(title.isEmpty ? "none" : title.joined(separator: " · ")) | text: \(content)"
+    }
+
+    // MARK: Index
+
+    private func loadIndex() {
+        index.removeAll(keepingCapacity: true)
+        let sql = "SELECT clip_id, embedding FROM clip_embeddings WHERE model = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, embeddingModelKey, -1, SQLITE_TRANSIENT)
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let bytes = Int(sqlite3_column_bytes(stmt, 1))
+            guard bytes == dims * MemoryLayout<Float>.size, let blob = sqlite3_column_blob(stmt, 1) else { continue }
+            index[sqlite3_column_int64(stmt, 0)] = Array(UnsafeBufferPointer(
+                start: blob.assumingMemoryBound(to: Float.self), count: dims))
+        }
+    }
+
+    private func storedVectorCount() -> Int {
+        let sql = "SELECT count(*) FROM clip_embeddings WHERE model = ? AND length(embedding) = ?"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return index.count }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, embeddingModelKey, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(stmt, 2, Int32(dims * MemoryLayout<Float>.size))
+        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int64(stmt, 0)) : index.count
+    }
+
+    /// Embeds a few missing clips, then re-queues itself so searches can run in between.
+    private func backfillChunk() {
+        guard loadError == nil else { backfillActive = false; return }
+        // Another Mac (via iCloud) or a deleted clip can change the table under us.
+        if storedVectorCount() != index.count { loadIndex() }
+
+        let sql = """
+        SELECT c.id, c.content_hash, c.content, c.source_app, c.source_url, c.source_file
+        FROM clips c
+        LEFT JOIN clip_embeddings e
+          ON e.clip_id = c.id AND e.model = ?1 AND e.content_hash = c.content_hash
+        WHERE c.is_sensitive = 0 AND e.clip_id IS NULL
+        ORDER BY c.created_at DESC
+        LIMIT 8
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { backfillActive = false; return }
+        sqlite3_bind_text(stmt, 1, embeddingModelKey, -1, SQLITE_TRANSIENT)
+        var pending: [(id: Int64, hash: String, text: String)] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let column = { (i: Int32) -> String? in sqlite3_column_text(stmt, i).map { String(cString: $0) } }
+            pending.append((
+                sqlite3_column_int64(stmt, 0),
+                column(1) ?? "",
+                documentText(content: column(2) ?? "", app: column(3), url: column(4), file: column(5))
+            ))
+        }
+        sqlite3_finalize(stmt)
+
+        guard !pending.isEmpty else { backfillActive = false; return }
+        for clip in pending {
+            let vector = embed(clip.text)
+            // An empty blob marks a clip we couldn't embed, so it isn't retried forever.
+            save(id: clip.id, hash: clip.hash, vector: vector ?? [])
+            index[clip.id] = vector
+        }
+        resetContextIfGrown()
+        queue.async { self.backfillChunk() }
+    }
+
+    private func save(id: Int64, hash: String, vector: [Float]) {
+        let sql = """
+        INSERT OR REPLACE INTO clip_embeddings (clip_id, content_hash, model, embedding, created_at)
+        VALUES (?, ?, ?, ?, unixepoch())
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int64(stmt, 1, id)
+        sqlite3_bind_text(stmt, 2, hash, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 3, embeddingModelKey, -1, SQLITE_TRANSIENT)
+        vector.withUnsafeBytes { raw in
+            _ = sqlite3_bind_blob(stmt, 4, raw.baseAddress ?? UnsafeRawPointer(bitPattern: 1), Int32(raw.count), SQLITE_TRANSIENT)
+        }
+        sqlite3_step(stmt)
+    }
+}
+
+struct DaemonError: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
+
+// MARK: - Local socket
+
+/// Line-delimited JSON over a user-only Unix socket: one request line in, one response line out.
+final class SocketServer {
+    private let path: String
+    private let handler: ([String: Any]) -> [String: Any]
+
+    init(path: String, handler: @escaping ([String: Any]) -> [String: Any]) {
+        self.path = path
+        self.handler = handler
+    }
+
+    func start(log: (String) -> Void) {
+        unlink(path)
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { log("⚠️  Could not create socket"); return }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        let maxLen = MemoryLayout.size(ofValue: addr.sun_path)
+        guard path.utf8.count < maxLen else { log("⚠️  Socket path too long"); return }
+        withUnsafeMutablePointer(to: &addr.sun_path) {
+            $0.withMemoryRebound(to: CChar.self, capacity: maxLen) { _ = strlcpy($0, path, maxLen) }
+        }
+
+        let oldMask = umask(0o077)
+        let bound = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        umask(oldMask)
+        guard bound == 0, listen(fd, 16) == 0 else {
+            log("⚠️  Could not listen on \(path): \(String(cString: strerror(errno)))")
+            close(fd)
+            return
+        }
+
+        let thread = Thread { [self] in
+            while true {
+                let client = accept(fd, nil, nil)
+                if client < 0 { continue }
+                DispatchQueue.global(qos: .userInitiated).async { self.serve(client) }
+            }
+        }
+        thread.name = "clipz.socket"
+        thread.start()
+        log("🔌 Listening on \(path)")
+    }
+
+    private func serve(_ client: Int32) {
+        defer { close(client) }
+        var on: Int32 = 1
+        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+
+        var request = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while request.count < 65_536, !request.contains(0x0A) {
+            let n = read(client, &buffer, buffer.count)
+            if n <= 0 { break }
+            request.append(contentsOf: buffer[0..<n])
+        }
+        let line = request.split(separator: 0x0A, maxSplits: 1, omittingEmptySubsequences: false).first ?? Data()
+        let response: [String: Any]
+        if let json = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] {
+            response = handler(json)
+        } else {
+            response = ["ok": false, "error": "Invalid request"]
+        }
+        guard var out = try? JSONSerialization.data(withJSONObject: response) else { return }
+        out.append(0x0A)
+        out.withUnsafeBytes { raw in
+            var sent = 0
+            while sent < raw.count {
+                let n = write(client, raw.baseAddress! + sent, raw.count - sent)
+                if n <= 0 { break }
+                sent += n
+            }
+        }
+    }
+}
+
 // MARK: - Daemon
 
 final class ClipzDaemon {
     private let db: DB
+    private let embedder: Embedder
+    private var server: SocketServer?
     private var lastChangeCount = -1
 
     init() {
         let location = resolveDatabaseLocation()
         db = DB(path: location.path, syncsAcrossDevices: location.syncsAcrossDevices)
+        embedder = Embedder(dbPath: location.path, log: { msg in
+            print("[\(ISO8601DateFormatter().string(from: Date()))] \(msg)")
+            fflush(stdout)
+        })
         log("Clipz daemon started · \(location.syncsAcrossDevices ? "iCloud Drive" : "local") · \(location.path)")
+    }
+
+    private func handle(_ request: [String: Any]) -> [String: Any] {
+        switch request["op"] as? String {
+        case "search":
+            guard let query = request["query"] as? String,
+                  !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return ["ok": false, "error": "Missing query"]
+            }
+            let limit = min(max(request["limit"] as? Int ?? 40, 1), 200)
+            switch embedder.search(query, limit: limit) {
+            case .success(let result):
+                return [
+                    "ok": true,
+                    "results": result.hits.map { ["id": $0.id, "score": Double($0.score)] },
+                    "indexing": result.indexing,
+                    "indexed": result.indexed,
+                ]
+            case .failure(let error):
+                return ["ok": false, "error": error.localizedDescription]
+            }
+        default:
+            return ["ok": false, "error": "Unknown op"]
+        }
     }
 
     private func log(_ msg: String) {
@@ -371,6 +797,8 @@ final class ClipzDaemon {
             lang:      lang
         )
 
+        if !sensitive { embedder.requestBackfill() }
+
         let preview = content.prefix(70).replacingOccurrences(of: "\n", with: " ")
         let ctx = [context.url, context.file].compactMap { $0 }.first.map { " · \($0.prefix(60))" } ?? ""
         log("\(sensitive ? "🔒" : "📋") [\(kind)] \"\(preview)\"\(ctx) — \(app ?? "?")")
@@ -378,7 +806,15 @@ final class ClipzDaemon {
 
     func run() {
         lastChangeCount = NSPasteboard.general.changeCount
+        embedder.start()
+        let server = SocketServer(path: socketPath) { [weak self] in
+            self?.handle($0) ?? ["ok": false, "error": "Daemon shutting down"]
+        }
+        server.start(log: log)
+        self.server = server
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
+        // Picks up clips synced from other Macs and anything a failed pass left behind.
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.embedder.requestBackfill() }
         RunLoop.main.run()
     }
 }

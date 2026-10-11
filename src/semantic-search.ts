@@ -1,190 +1,97 @@
 import { spawnSync } from "child_process";
-import { Clip } from "./db";
+import { createConnection } from "net";
+import { join } from "path";
+import { Clip, CLIPZ_DIR } from "./db";
 
-export interface SemanticPrefs {
-  ollamaUrl: string;
-  embeddingModel: string;
-}
-
-interface EmbeddingRow {
-  clip_id: number;
-  content_hash: string;
-  embedding: string;
-}
-
-interface RawClip extends Clip {
-  content_hash: string;
-}
+// The daemon runs EmbeddingGemma 2 locally, embeds every clip as it's copied and
+// answers searches over a user-only Unix socket. See daemon/clipz-daemon.swift.
+const SOCKET_PATH = join(CLIPZ_DIR, "daemon.sock");
 
 export interface SemanticResult {
   clip: Clip;
   score: number;
 }
 
-const SEMANTIC_COLS =
-  "id,content,content_hash,content_type,is_sensitive,source_app,source_url,source_file,content_html,content_lang,created_at,copy_count";
-
-function sqlString(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
+interface DaemonHit {
+  id: number;
+  score: number;
 }
 
-function sqlite(dbPath: string, sql: string): string {
-  const result = spawnSync("/usr/bin/sqlite3", ["-json", dbPath, sql], {
-    encoding: "utf8",
+type DaemonResponse =
+  | { ok: true; results: DaemonHit[]; indexing: boolean; indexed: number }
+  | { ok: false; error: string };
+
+const CLIP_COLS =
+  "id,content,content_type,is_sensitive,source_app,source_url,source_file,content_html,content_lang,created_at,copy_count";
+
+function askDaemon(
+  request: object,
+  timeoutMs = 5_000,
+): Promise<DaemonResponse> {
+  return new Promise((resolve, reject) => {
+    const socket = createConnection(SOCKET_PATH);
+    let buffer = "";
+    socket.setTimeout(timeoutMs, () => {
+      socket.destroy();
+      reject(new Error("Clipz daemon did not respond"));
+    });
+    socket.on("connect", () => socket.write(`${JSON.stringify(request)}\n`));
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8");
+      const newline = buffer.indexOf("\n");
+      if (newline === -1) return;
+      socket.end();
+      try {
+        resolve(JSON.parse(buffer.slice(0, newline)) as DaemonResponse);
+      } catch {
+        reject(new Error("Clipz daemon sent an invalid response"));
+      }
+    });
+    socket.on("error", (error: NodeJS.ErrnoException) => {
+      reject(
+        error.code === "ENOENT" || error.code === "ECONNREFUSED"
+          ? new Error("Clipz daemon isn't running")
+          : error,
+      );
+    });
   });
-  if (result.status !== 0) {
-    throw new Error(result.stderr || "sqlite3 failed");
-  }
-  return result.stdout.trim();
 }
 
-function sqliteExec(dbPath: string, sql: string) {
-  const result = spawnSync("/usr/bin/sqlite3", [dbPath, sql], {
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    throw new Error(result.stderr || "sqlite3 failed");
-  }
-}
-
-function queryJSON<T>(dbPath: string, sql: string): T[] {
-  const out = sqlite(dbPath, sql);
-  return out ? (JSON.parse(out) as T[]) : [];
-}
-
-export function ensureEmbeddingsTable(dbPath: string) {
-  sqliteExec(
-    dbPath,
-    `
-CREATE TABLE IF NOT EXISTS clip_embeddings (
-  clip_id INTEGER PRIMARY KEY,
-  content_hash TEXT NOT NULL,
-  model TEXT NOT NULL,
-  embedding TEXT NOT NULL,
-  created_at INTEGER NOT NULL DEFAULT (unixepoch())
-);
-CREATE INDEX IF NOT EXISTS idx_clip_embeddings_model ON clip_embeddings(model);
-`,
-  );
-}
-
-async function embed(text: string, prefs: SemanticPrefs): Promise<number[]> {
-  const model = prefs.embeddingModel || "nomic-embed-text";
-  const res = await fetch(`${prefs.ollamaUrl}/api/embeddings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      prompt: text.slice(0, 4000),
-    }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    if (res.status === 404 && body.includes("not found")) {
-      throw new Error(`Embedding model missing. Run: ollama pull ${model}`);
-    }
-    throw new Error(
-      `Ollama embeddings HTTP ${res.status}${body ? `: ${body}` : ""}`,
-    );
-  }
-  const json = (await res.json()) as { embedding?: number[] };
-  if (!Array.isArray(json.embedding)) throw new Error("No embedding returned");
-  return json.embedding;
-}
-
-function cosine(a: number[], b: number[]): number {
-  let dot = 0;
-  let aMag = 0;
-  let bMag = 0;
-  const len = Math.min(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    aMag += a[i] * a[i];
-    bMag += b[i] * b[i];
-  }
-  if (!aMag || !bMag) return 0;
-  return dot / (Math.sqrt(aMag) * Math.sqrt(bMag));
-}
-
-function clipToEmbeddingText(clip: RawClip): string {
-  const app = clip.source_app ? `App: ${clip.source_app}\n` : "";
-  const url = clip.source_url ? `URL: ${clip.source_url}\n` : "";
-  const file = clip.source_file ? `File: ${clip.source_file}\n` : "";
-  const lang = clip.content_lang ? `Language: ${clip.content_lang}\n` : "";
-  return `${app}${url}${file}${lang}Type: ${clip.content_type}\nContent:\n${clip.content}`;
-}
-
-async function backfillEmbeddings(
-  dbPath: string,
-  clips: RawClip[],
-  prefs: SemanticPrefs,
-) {
-  const model = prefs.embeddingModel || "nomic-embed-text";
-  const existing = queryJSON<EmbeddingRow>(
-    dbPath,
-    `SELECT clip_id, content_hash, embedding FROM clip_embeddings WHERE model = ${sqlString(model)}`,
-  );
-  const existingById = new Map(existing.map((row) => [row.clip_id, row]));
-
-  for (const clip of clips) {
-    const cached = existingById.get(clip.id);
-    if (cached?.content_hash === clip.content_hash) continue;
-
-    const vector = await embed(clipToEmbeddingText(clip), prefs);
-    sqliteExec(
+function clipsById(dbPath: string, ids: number[]): Map<number, Clip> {
+  if (ids.length === 0) return new Map();
+  const result = spawnSync(
+    "/usr/bin/sqlite3",
+    [
+      "-json",
       dbPath,
-      `
-INSERT OR REPLACE INTO clip_embeddings (clip_id, content_hash, model, embedding, created_at)
-VALUES (${clip.id}, ${sqlString(clip.content_hash)}, ${sqlString(model)}, ${sqlString(JSON.stringify(vector))}, unixepoch());
-`,
-    );
-  }
+      `SELECT ${CLIP_COLS} FROM clips WHERE id IN (${ids.map(Number).join(",")})`,
+    ],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) throw new Error(result.stderr || "sqlite3 failed");
+  const rows = result.stdout.trim()
+    ? (JSON.parse(result.stdout) as Clip[])
+    : [];
+  return new Map(rows.map((clip) => [clip.id, clip]));
 }
 
 export async function semanticSearch(
   dbPath: string,
   query: string,
-  prefs: SemanticPrefs,
   limit = 40,
 ): Promise<SemanticResult[]> {
   if (!query.trim()) return [];
-  ensureEmbeddingsTable(dbPath);
 
-  const candidates = queryJSON<RawClip>(
+  const response = await askDaemon({ op: "search", query, limit });
+  if (!response.ok) throw new Error(response.error);
+
+  // Clips deleted since the daemon last refreshed its index simply drop out here.
+  const clips = clipsById(
     dbPath,
-    `
-SELECT ${SEMANTIC_COLS}
-FROM clips
-WHERE is_sensitive = 0
-ORDER BY created_at DESC
-LIMIT 400;
-`,
+    response.results.map((hit) => hit.id),
   );
-  if (candidates.length === 0) return [];
-
-  await backfillEmbeddings(dbPath, candidates, prefs);
-
-  const model = prefs.embeddingModel || "nomic-embed-text";
-  const rows = queryJSON<EmbeddingRow>(
-    dbPath,
-    `
-SELECT clip_id, content_hash, embedding
-FROM clip_embeddings
-WHERE model = ${sqlString(model)};
-`,
-  );
-  const embeddingsById = new Map(
-    rows.map((row) => [row.clip_id, JSON.parse(row.embedding) as number[]]),
-  );
-  const queryEmbedding = await embed(query, prefs);
-
-  return candidates
-    .map((clip) => ({
-      clip,
-      score: cosine(queryEmbedding, embeddingsById.get(clip.id) ?? []),
-    }))
-    .filter((result) => result.score > 0.2)
-    .sort((a, b) => b.score - a.score || b.clip.created_at - a.clip.created_at)
-    .slice(0, limit);
+  return response.results.flatMap((hit) => {
+    const clip = clips.get(hit.id);
+    return clip ? [{ clip, score: hit.score }] : [];
+  });
 }

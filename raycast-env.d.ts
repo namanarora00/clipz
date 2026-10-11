@@ -14,8 +14,6 @@ type ExtensionPreferences = {
   "ollamaUrl": string,
   /** Ollama Model - Model for Ollama mode */
   "ollamaModel": string,
-  /** Embedding Model - Ollama model used for semantic clipboard search */
-  "embeddingModel": string,
   /** API Key - OpenAI or Anthropic API key */
   "apiKey"?: string,
   /** Cloud Model - OpenAI: gpt-4o-mini · Anthropic: claude-haiku-4-5-20251001 */
