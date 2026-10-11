@@ -1,11 +1,14 @@
 import { spawnSync } from "child_process";
 import { createConnection } from "net";
+import { homedir } from "os";
 import { join } from "path";
-import { Clip, CLIPZ_DIR } from "./db";
+import type { Clip } from "./db";
 
 // The daemon runs EmbeddingGemma 2 locally, embeds every clip as it's copied and
 // answers searches over a user-only Unix socket. See daemon/clipz-daemon.swift.
-const SOCKET_PATH = join(CLIPZ_DIR, "daemon.sock");
+function socketPath(): string {
+  return process.env.CLIPZ_SOCKET ?? join(homedir(), ".clipz", "daemon.sock");
+}
 
 export interface SemanticResult {
   clip: Clip;
@@ -29,7 +32,7 @@ function askDaemon(
   timeoutMs = 5_000,
 ): Promise<DaemonResponse> {
   return new Promise((resolve, reject) => {
-    const socket = createConnection(SOCKET_PATH);
+    const socket = createConnection(socketPath());
     let buffer = "";
     socket.setTimeout(timeoutMs, () => {
       socket.destroy();

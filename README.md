@@ -51,3 +51,12 @@ npm run build
 npm run lint
 ./daemon/install.sh
 ```
+
+## Tests
+
+```bash
+bash daemon/build.sh
+npm test
+```
+
+Spins up a throwaway daemon on a temp database and socket, so your real history is never touched. It checks indexing, search quality, the socket protocol, memory, restarts, and the Raycast-side client. `CLIPZ_TEST_PASTEBOARD=1 npm test` also checks live clipboard capture, copying a test string and then restoring your clipboard text. Rude, but brief.

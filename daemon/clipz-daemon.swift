@@ -313,8 +313,12 @@ func detectType(_ content: String) -> String {
 // MARK: - Semantic search
 
 let clipzDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".clipz")
-let embeddingModelPath = clipzDir.appendingPathComponent("models/embeddinggemma-2-Q8_0.gguf").path
-let socketPath = clipzDir.appendingPathComponent("daemon.sock").path
+let environment = ProcessInfo.processInfo.environment
+// CLIPZ_* overrides exist so tests can run a daemon beside the real one.
+let embeddingModelPath = environment["CLIPZ_MODEL"]
+    ?? clipzDir.appendingPathComponent("models/embeddinggemma-2-Q8_0.gguf").path
+let socketPath = environment["CLIPZ_SOCKET"] ?? clipzDir.appendingPathComponent("daemon.sock").path
+let sweepInterval = TimeInterval(environment["CLIPZ_SWEEP_SECONDS"] ?? "") ?? 60
 // Bump the suffix whenever the document text format changes so clips get re-embedded.
 let embeddingModelKey = "embeddinggemma-2-q8_0/v1"
 
@@ -814,7 +818,7 @@ final class ClipzDaemon {
         self.server = server
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
         // Picks up clips synced from other Macs and anything a failed pass left behind.
-        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.embedder.requestBackfill() }
+        Timer.scheduledTimer(withTimeInterval: sweepInterval, repeats: true) { [weak self] _ in self?.embedder.requestBackfill() }
         RunLoop.main.run()
     }
 }
