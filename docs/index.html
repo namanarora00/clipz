@@ -8,7 +8,9 @@
 <meta property="og:title" content="Clipz">
 <meta property="og:description" content="I made a clipboard manager because apparently that was still a problem. It has AI too, because of course it does.">
 <meta property="og:image" content="https://namanarora00.github.io/clipz/icon.png">
-<meta name="theme-color" content="#6d3fdc">
+<meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111015" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,323 +18,715 @@
 <style>
   :root {
     --bg: #fbfaf8;
+    --bg-2: #f5f3f0;
     --surface: #ffffff;
-    --surface-2: #f3f1ee;
-    --text: #1b1a1f;
-    --muted: #6a6772;
-    --faint: #9a97a2;
-    --line: #e6e3de;
-    --accent: #6d3fdc;
-    --accent-2: #a23ff0;
-    --accent-soft: #efe9fd;
-    --good: #1f8a5b;
-    --window: #ffffff;
-    --window-bar: #f4f2ef;
-    --shadow: 0 1px 2px rgba(20, 16, 40, .06), 0 12px 40px -12px rgba(40, 20, 90, .18);
+    --surface-2: #f4f2ef;
+    --text: #17161c;
+    --muted: #5f5c69;
+    --faint: #74717d;
+    --line: #e7e4df;
+    --line-strong: #d6d2cc;
+    --accent: #5b3fc4;
+    --accent-2: #a43ff0;
+    --accent-ink: #5b3fc4;
+    --accent-soft: #f0ebfd;
+    --accent-line: #d9cdfa;
+    --glow-1: rgba(124, 63, 236, .26);
+    --glow-2: rgba(164, 63, 240, .16);
+    --good: #187a4f;
+    --warn: #a3520a;
+    --win: #ffffff;
+    --win-bar: #f7f6f4;
+    --win-detail: #fbfaf9;
+    --grain-opacity: .07;
+    --shadow-sm: 0 1px 2px rgba(20, 16, 40, .05), 0 2px 8px -4px rgba(40, 20, 90, .08);
+    --shadow: 0 1px 2px rgba(20, 16, 40, .06), 0 24px 60px -24px rgba(50, 20, 120, .32), 0 8px 24px -16px rgba(40, 20, 90, .2);
     --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
     --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, system-ui, sans-serif;
     --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #121117;
-      --surface: #1a1920;
+      --bg: #111015;
+      --bg-2: #15141a;
+      --surface: #19181f;
       --surface-2: #211f28;
-      --text: #ecebf0;
-      --muted: #a29fac;
-      --faint: #75727e;
-      --line: #2c2a34;
-      --accent: #a78bfa;
-      --accent-2: #d08cff;
-      --accent-soft: #2a2240;
-      --good: #4ccf8f;
-      --window: #1c1b22;
-      --window-bar: #24222b;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 20px 50px -16px rgba(0, 0, 0, .7);
+      --text: #eeedf2;
+      --muted: #aaa7b4;
+      --faint: #8c8996;
+      --line: #2a2831;
+      --line-strong: #3a3743;
+      --accent: #8f6bff;
+      --accent-2: #cf7dff;
+      --accent-ink: #b9a2ff;
+      --accent-soft: #2a2141;
+      --accent-line: #4a3a78;
+      --glow-1: rgba(124, 77, 255, .32);
+      --glow-2: rgba(190, 80, 255, .18);
+      --good: #57d49a;
+      --warn: #f0a35a;
+      --win: #1b1a21;
+      --win-bar: #222029;
+      --win-detail: #18171d;
+      --grain-opacity: .09;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 30px 70px -24px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .03);
     }
   }
 
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
     font: 16px/1.6 var(--sans);
     -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
   }
   a { color: inherit; }
   code, pre, kbd { font-family: var(--mono); }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  ::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  em { font-style: italic; }
+  .grad {
+    background: linear-gradient(100deg, var(--accent) 10%, var(--accent-2) 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    padding-right: .06em;
+  }
+  kbd {
+    display: inline-block; min-width: 20px; text-align: center;
+    font-size: 11px; line-height: 1.5; padding: 0 5px; border-radius: 5px;
+    border: 1px solid var(--line); border-bottom-width: 2px;
+    background: var(--surface); color: var(--muted);
+  }
+  p code, li code { font-size: .86em; background: var(--surface-2); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line); }
 
   /* Nav */
-  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
-  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; letter-spacing: -.01em; }
-  .brand img { width: 26px; height: 26px; border-radius: 50%; }
-  .nav-links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
-  .nav-links a { text-decoration: none; }
-  .nav-links a:hover { color: var(--text); }
+  .nav-shell {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px); backdrop-filter: saturate(1.4) blur(14px);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  }
+  nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 17px; letter-spacing: -.01em; }
+  .brand img { width: 28px; height: 28px; border-radius: 50%; box-shadow: 0 2px 10px -2px var(--glow-1); }
+  .nav-links { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); }
+  .nav-links a { text-decoration: none; padding: 7px 12px; border-radius: 8px; transition: color .15s, background-color .15s; }
+  .nav-links a:hover { color: var(--text); background: var(--surface-2); }
+  .nav-links .gh { display: inline-flex; align-items: center; gap: 7px; color: var(--text); border: 1px solid var(--line); background: var(--surface); margin-left: 6px; }
+  .nav-links .gh svg { width: 15px; height: 15px; }
 
   /* Hero */
-  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding: 48px 0 88px; }
-  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+  .hero { position: relative; padding: 56px 0 96px; text-align: center; }
+  .hero-bg {
+    position: absolute; inset: -64px 0 0; pointer-events: none; overflow: hidden; z-index: 0;
+    -webkit-mask-image: linear-gradient(#000 70%, transparent);
+            mask-image: linear-gradient(#000 70%, transparent);
+  }
+  .hero-bg::before {
+    content: ""; position: absolute; left: 50%; top: 42%; width: min(1100px, 140vw); height: 900px; transform: translateX(-50%);
+    background:
+      radial-gradient(closest-side at 50% 55%, var(--glow-1), transparent 70%),
+      radial-gradient(closest-side at 28% 70%, var(--glow-2), transparent 70%),
+      radial-gradient(closest-side at 74% 66%, var(--glow-2), transparent 70%);
+    filter: blur(8px);
+  }
+  .hero-bg::after {
+    content: ""; position: absolute; inset: 0; opacity: var(--grain-opacity); mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.4 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 62%, #000 30%, transparent 75%);
+            mask-image: radial-gradient(ellipse 70% 60% at 50% 62%, #000 30%, transparent 75%);
+  }
+  .hero-grid {
+    position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 56px 56px; background-position: center top;
+    -webkit-mask-image: radial-gradient(ellipse 60% 45% at 50% 20%, #000, transparent 75%);
+            mask-image: radial-gradient(ellipse 60% 45% at 50% 20%, #000, transparent 75%);
+  }
+  .hero > .wrap { position: relative; z-index: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 10px; max-width: 100%;
+    padding: 5px 14px 5px 5px; border-radius: 999px;
+    font-size: 13px; color: var(--muted); text-decoration: none;
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+    transition: border-color .2s, color .2s;
+  }
+  .pill:hover { border-color: var(--accent-line); color: var(--text); }
+  .pill b {
+    font: 600 11px/1 var(--sans); letter-spacing: .02em; color: #fff; padding: 5px 9px; border-radius: 999px;
+    background: linear-gradient(120deg, #5b3fc4, #8f3fe6);
+  }
+  .pill span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pill i { font-style: normal; color: var(--faint); transition: transform .2s; }
+  .pill:hover i { transform: translateX(2px); }
   h1 {
-    font: 400 clamp(40px, 5.4vw, 64px)/1.02 var(--serif);
-    letter-spacing: -.015em;
-    margin: 0 0 22px;
+    font: 400 clamp(44px, 6.6vw, 82px)/.98 var(--serif);
+    letter-spacing: -.02em;
+    margin: 26px auto 22px; max-width: 13.5em; text-wrap: balance;
   }
-  h1 em, h2 em { font-style: italic; color: var(--accent); }
-  .lede { font-size: 18px; color: var(--muted); max-width: 34em; margin: 0 0 30px; }
-  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .lede { font-size: 19px; color: var(--muted); max-width: 33em; margin: 0 auto 32px; text-wrap: pretty; }
+  .lede em { color: var(--text); }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
   .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 11px 18px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 46px; padding: 0 20px; border-radius: 12px;
     font: 500 15px/1 var(--sans); text-decoration: none; cursor: pointer;
-    border: 1px solid transparent;
+    border: 1px solid transparent; transition: transform .15s, box-shadow .2s, border-color .2s, filter .2s;
   }
-  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
-  .btn-primary:hover { filter: brightness(1.06); }
-  .btn-ghost { border-color: var(--line); background: var(--surface); }
-  .btn-ghost:hover { border-color: var(--faint); }
+  .btn-primary {
+    background: linear-gradient(135deg, #5b3fc4, #8a3fe4); color: #fff;
+    box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 10px 24px -10px rgba(91, 63, 196, .7);
+  }
+  .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 14px 30px -10px rgba(110, 63, 210, .8); }
+  .btn-ghost { border-color: var(--line); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .btn-ghost:hover { border-color: var(--line-strong); transform: translateY(-1px); }
   .btn svg { width: 17px; height: 17px; }
-  .fineprint { margin-top: 16px; font-size: 13px; color: var(--faint); }
+  .fineprint { margin: 16px 0 0; font-size: 13px; color: var(--faint); }
 
-  /* Mock Raycast window */
+  /* Raycast-style windows */
   .window {
-    background: var(--window); border: 1px solid var(--line); border-radius: 14px;
+    position: relative; text-align: left;
+    background: var(--win); border: 1px solid var(--line); border-radius: 16px;
     box-shadow: var(--shadow); overflow: hidden; font-size: 13px;
   }
-  .window-search {
-    display: flex; align-items: center; gap: 10px; padding: 14px 16px;
-    border-bottom: 1px solid var(--line); font-size: 15px;
+  .hero-window { max-width: 940px; margin: 64px auto 0; }
+  .win-search {
+    display: flex; align-items: center; gap: 12px; padding: 0 18px; height: 56px;
+    border-bottom: 1px solid var(--line); font-size: 16px;
   }
-  .window-search svg { width: 16px; height: 16px; color: var(--faint); flex: none; }
-  .typed { white-space: nowrap; overflow: hidden; }
-  .caret { display: inline-block; width: 1.5px; height: 17px; background: var(--accent); vertical-align: -3px; animation: blink 1.1s steps(1) infinite; }
+  .win-search > svg { width: 18px; height: 18px; color: var(--faint); flex: none; }
+  .typed { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .caret { flex: none; display: inline-block; width: 2px; height: 20px; margin-left: -10px; background: var(--accent); border-radius: 1px; animation: blink 1.1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
-  .window-body { padding: 8px; }
-  .section-label { padding: 10px 10px 6px; font-size: 11px; font-weight: 600; color: var(--faint); display: flex; justify-content: space-between; }
-  .row { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; }
-  .row.selected { background: var(--accent-soft); }
-  .row .ico { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font: 600 11px/1 var(--mono); color: #fff; }
+  .win-search .spacer { flex: 1; }
+  .win-chip { flex: none; font-size: 12px; color: var(--muted); padding: 4px 10px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--line); }
+  .win-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 340px; }
+  .win-list { padding: 6px 8px 10px; }
+  .win-detail { border-left: 1px solid var(--line); background: var(--win-detail); display: flex; flex-direction: column; min-width: 0; }
+  .section-label { padding: 12px 10px 6px; font-size: 11.5px; font-weight: 600; color: var(--faint); display: flex; justify-content: space-between; }
+  .row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 8px 10px; border-radius: 9px; }
+  .row.selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+  .ico {
+    width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+    font: 600 10.5px/1 var(--mono); color: #fff; flex: none;
+  }
+  .ico svg { width: 13px; height: 13px; }
   .row .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .title code { font-size: 12px; }
   .row .sub { color: var(--faint); margin-left: 6px; }
   .meta { display: flex; gap: 8px; align-items: center; color: var(--faint); font-size: 12px; white-space: nowrap; }
   .tag { padding: 2px 7px; border-radius: 5px; background: var(--surface-2); color: var(--muted); font-size: 11px; }
-  .score { font-family: var(--mono); color: var(--good); font-size: 11px; }
-  .window-foot {
-    display: flex; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line);
-    background: var(--window-bar); color: var(--faint); font-size: 12px;
+  .score { font: 500 11px/1 var(--mono); color: var(--good); padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, var(--good) 12%, transparent); }
+
+  .preview { flex: 1; padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
+  .preview pre {
+    margin: 0; padding: 14px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+    font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; color: var(--text);
   }
-  kbd { font-size: 11px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+  .preview pre .k { color: var(--accent-ink); }
+  .preview pre .s { color: var(--good); }
+  .preview pre .c { color: var(--faint); }
+  .meta-list { margin: 0; padding: 10px 18px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 18px; font-size: 12.5px; }
+  .meta-list dt, .meta-list dd { padding: 7px 0; border-bottom: 1px solid var(--line); margin: 0; }
+  .meta-list dt { color: var(--faint); }
+  .meta-list dd { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta-list dt:nth-last-of-type(1), .meta-list dd:nth-last-of-type(1) { border-bottom: 0; }
+  .meta-list dd .ico { display: inline-grid; width: 16px; height: 16px; border-radius: 4px; font-size: 8px; vertical-align: -3px; margin-right: 6px; }
+  .meta-list code { font-size: 11.5px; }
+
+  .win-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; height: 42px;
+    border-top: 1px solid var(--line); background: var(--win-bar); color: var(--muted); font-size: 12px;
+  }
+  .win-foot .src { display: flex; align-items: center; gap: 8px; color: var(--faint); white-space: nowrap; }
+  .win-foot .src img { width: 16px; height: 16px; border-radius: 50%; }
+  .actions { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
+  .actions span { display: inline-flex; align-items: center; gap: 6px; }
+  .actions .primary { color: var(--text); font-weight: 500; }
+  .actions .sep { width: 1px; height: 14px; background: var(--line-strong); }
+  .actions kbd { min-width: 18px; padding: 0 4px; font-size: 10.5px; }
 
   /* Sections */
-  section { padding: 84px 0; border-top: 1px solid var(--line); }
-  h2 { font: 400 clamp(32px, 4vw, 44px)/1.08 var(--serif); letter-spacing: -.01em; margin: 0 0 14px; }
-  .section-lede { color: var(--muted); font-size: 17px; max-width: 40em; margin: 0 0 44px; }
+  section { padding: 104px 0; position: relative; }
+  section + section::before, .hero + section::before {
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: min(1072px, calc(100% - 48px)); height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line) 15%, var(--line) 85%, transparent);
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 18px;
+  }
+  .eyebrow::before { content: ""; width: 16px; height: 1px; background: currentColor; opacity: .6; }
+  h2 { font: 400 clamp(34px, 4.4vw, 52px)/1.04 var(--serif); letter-spacing: -.015em; margin: 0 0 16px; text-wrap: balance; }
+  .section-lede { color: var(--muted); font-size: 17.5px; max-width: 38em; margin: 0 0 48px; text-wrap: pretty; }
 
-  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-  .feature { background: var(--surface); padding: 26px 24px 28px; }
-  .feature h3 { font-size: 16px; margin: 0 0 8px; letter-spacing: -.005em; }
+  /* Features */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .feature {
+    position: relative; background: var(--surface); padding: 26px 26px 28px; border-radius: 16px;
+    border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  .feature::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+    background: radial-gradient(400px 160px at 0% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+    transition: opacity .25s ease;
+  }
+  .feature:hover { transform: translateY(-3px); border-color: var(--accent-line); box-shadow: 0 18px 40px -24px rgba(91, 63, 196, .45); }
+  .feature:hover::before { opacity: 1; }
+  .feature h3 { font-size: 16.5px; margin: 0 0 8px; letter-spacing: -.01em; }
   .feature p { margin: 0; color: var(--muted); font-size: 15px; }
-  .feature .num { font: 500 12px/1 var(--mono); color: var(--accent); margin-bottom: 14px; display: block; }
+  .f-ico {
+    width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; margin-bottom: 18px;
+    color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-line);
+    transition: transform .25s ease;
+  }
+  .feature:hover .f-ico { transform: rotate(-6deg) scale(1.05); }
+  .f-ico svg { width: 20px; height: 20px; }
+
+  /* Ask AI */
+  .ask { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 64px; align-items: center; }
+  .ask .section-lede { margin-bottom: 28px; }
+  .providers { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .providers li {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 14.5px; font-weight: 500;
+  }
+  .providers small { font: 500 11px/1 var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .05em; }
+  .providers .local small { color: var(--good); }
+  .note { font-size: 14px; color: var(--muted); margin: 0; display: flex; gap: 10px; }
+  .note svg { flex: none; width: 17px; height: 17px; margin-top: 2px; color: var(--faint); }
+  .ask-window .win-search .spark { color: var(--accent-ink); }
+  .answer { padding: 20px 22px 6px; font-size: 14.5px; line-height: 1.7; }
+  .answer p { margin: 0 0 12px; }
+  .answer .who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--faint); margin-bottom: 10px; }
+  .answer .who b { color: var(--text); font-weight: 600; }
+  .cite {
+    display: inline-grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; margin: 0 1px;
+    font: 600 10px/1 var(--mono); color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-line);
+    border-radius: 5px; vertical-align: 2px;
+  }
+  .sources { padding: 4px 8px 12px; }
+  .sources .row { grid-template-columns: 17px 22px minmax(0, 1fr) auto; }
+  .sources .row .cite { margin: 0; vertical-align: 0; }
 
   /* Pipeline */
-  .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; position: relative; }
-  .stage { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; position: relative; }
-  .stage:not(:last-child)::after {
-    content: ""; position: absolute; right: -11px; top: 50%; width: 8px; height: 8px;
-    border-top: 1.5px solid var(--faint); border-right: 1.5px solid var(--faint);
-    transform: translateY(-50%) rotate(45deg);
+  .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; position: relative; }
+  .stage {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 22px 24px; position: relative;
+    box-shadow: var(--shadow-sm);
   }
-  .stage .k { font: 500 11px/1 var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .08em; }
-  .stage h3 { margin: 10px 0 10px; font-size: 16px; }
+  .stage:not(:last-child)::after {
+    content: ""; position: absolute; right: -14px; top: 38px; width: 10px; height: 10px; z-index: 1;
+    background: var(--bg); border: 1px solid var(--line-strong); border-radius: 50%;
+  }
+  .stage-head { display: flex; align-items: center; gap: 12px; }
+  .stage .s-ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); flex: none; }
+  .stage .s-ico svg { width: 18px; height: 18px; }
+  .stage .k { font: 500 11px/1.3 var(--mono); color: var(--faint); text-transform: uppercase; letter-spacing: .07em; }
+  .stage h3 { margin: 16px 0 10px; font-size: 16.5px; letter-spacing: -.01em; }
   .stage ul { margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 14px; }
-  .stage li { padding: 3px 0; }
-  .stage li::before { content: "—"; color: var(--faint); margin-right: 8px; }
-  .stage.highlight { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+  .stage li { padding: 4px 0 4px 16px; position: relative; }
+  .stage li::before { content: ""; position: absolute; left: 0; top: 13px; width: 6px; height: 1.5px; border-radius: 1px; background: var(--line-strong); }
+  .stage.highlight {
+    border-color: var(--accent-line);
+    background: linear-gradient(180deg, var(--accent-soft), var(--surface) 75%);
+    box-shadow: 0 20px 50px -28px rgba(91, 63, 196, .55);
+  }
+  .stage.highlight .s-ico { background: linear-gradient(135deg, #5b3fc4, #a43ff0); color: #fff; border-color: transparent; }
+  .stage.highlight .k { color: var(--accent-ink); }
+  .stage.highlight li::before { background: var(--accent); }
 
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 28px; }
-  .stat { padding: 18px 20px; border-radius: 12px; background: var(--surface-2); }
-  .stat b { display: block; font: 400 34px/1.1 var(--serif); }
-  .stat span { color: var(--muted); font-size: 13px; }
+  .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 18px;
+    border: 1px solid var(--line); border-radius: 16px; background: var(--surface); overflow: hidden;
+  }
+  .stat { padding: 24px 24px 22px; }
+  .stat + .stat { border-left: 1px solid var(--line); }
+  .stat b { display: block; font: 400 44px/1 var(--serif); letter-spacing: -.01em; margin-bottom: 8px; }
+  .stat b small { font-size: .8em; color: var(--faint); margin-right: 1px; vertical-align: .08em; }
+  .stat span { color: var(--muted); font-size: 13.5px; }
 
-  .search-explainer { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
-  .card h3 { margin: 0 0 8px; font-size: 16px; }
+  .search-explainer { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 26px; }
+  .card h3 { margin: 0 0 8px; font-size: 16.5px; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+  .card h3 svg { width: 18px; height: 18px; color: var(--accent-ink); flex: none; }
   .card p { margin: 0; color: var(--muted); font-size: 15px; }
-  .card code { font-size: 13px; background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
 
   /* Privacy */
-  .privacy { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
-  .quote { font: italic 400 clamp(26px, 3vw, 34px)/1.25 var(--serif); margin: 0; }
-  .quote::before { content: "“"; color: var(--accent); }
-  .quote::after { content: "”"; color: var(--accent); }
+  .privacy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: center; }
+  .quote-card {
+    position: relative; margin: 0; padding: 40px 40px 36px; border-radius: 20px; overflow: hidden;
+    background:
+      radial-gradient(500px 260px at 100% 0%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 70%),
+      radial-gradient(400px 260px at 0% 100%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+      var(--surface);
+    border: 1px solid var(--accent-line);
+  }
+  .quote-card .mark { position: absolute; top: -18px; right: 22px; font: 400 180px/1 var(--serif); color: var(--accent); opacity: .14; pointer-events: none; }
+  .quote { position: relative; font: italic 400 clamp(26px, 3vw, 36px)/1.22 var(--serif); margin: 0 0 22px; text-wrap: pretty; }
+  .quote-card figcaption { position: relative; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+  .quote-card figcaption .zero {
+    font: 500 12px/1 var(--mono); color: var(--accent-ink); padding: 6px 10px; border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--accent-line);
+  }
   .checklist { margin: 0; padding: 0; list-style: none; }
-  .checklist li { padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 15px; }
-  .checklist li:last-child { border-bottom: 0; }
+  .checklist li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+  .checklist li:first-child { padding-top: 0; }
+  .checklist li:last-child { border-bottom: 0; padding-bottom: 0; }
   .checklist b { color: var(--text); font-weight: 600; }
+  .check { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--good) 13%, transparent); color: var(--good); }
+  .check.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+  .check svg { width: 15px; height: 15px; }
 
   /* Install */
-  .terminal { background: #15141a; color: #e9e7ef; border-radius: 12px; overflow: hidden; border: 1px solid #2a2832; }
-  .terminal-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #1d1c23; border-bottom: 1px solid #2a2832; }
-  .dots { display: flex; gap: 6px; }
-  .dots i { width: 10px; height: 10px; border-radius: 50%; background: #3a3842; display: block; }
-  .copy { font: 500 12px/1 var(--sans); color: #b9b6c3; background: transparent; border: 1px solid #3a3842; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-  .copy:hover { color: #fff; border-color: #5a5763; }
-  .terminal pre { margin: 0; padding: 18px 20px; font-size: 14px; line-height: 1.8; overflow-x: auto; }
-  .terminal .c { color: #75727e; }
-  .terminal .p { color: #a78bfa; user-select: none; }
-  .install-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 28px; align-items: start; }
-  .reqs { margin: 0; padding: 0; list-style: none; }
-  .reqs li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; color: var(--muted); }
-  .reqs li b { color: var(--text); min-width: 92px; font-weight: 600; }
+  .install-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+  .terminal {
+    background: #131217; color: #e9e7ef; border-radius: 16px; overflow: hidden; border: 1px solid #2a2832;
+    box-shadow: 0 30px 60px -30px rgba(40, 20, 90, .55);
+  }
+  .terminal-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px 10px 16px; background: #1b1a21; border-bottom: 1px solid #2a2832; }
+  .dots { display: flex; gap: 7px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: #3a3842; display: block; }
+  .terminal-title { font: 500 12px/1 var(--mono); color: #8a8794; margin-right: auto; margin-left: 10px; }
+  .copy {
+    display: inline-flex; align-items: center; gap: 7px;
+    font: 500 12px/1 var(--sans); color: #c9c6d3; background: #24222b; border: 1px solid #3a3842; border-radius: 8px; padding: 7px 11px; cursor: pointer;
+    transition: color .15s, border-color .15s, background-color .15s;
+  }
+  .copy svg { width: 13px; height: 13px; }
+  .copy:hover { color: #fff; border-color: #5a5763; background: #2b2933; }
+  .copy.done { color: #8ff0bf; border-color: #2f6a4c; }
+  .terminal pre { margin: 0; padding: 20px 22px 22px; font-size: 14px; line-height: 1.9; overflow-x: auto; }
+  .terminal .c { color: #7d7a88; }
+  .terminal .p { color: #b9a2ff; user-select: none; -webkit-user-select: none; }
+  .reqs { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .reqs li { display: grid; grid-template-columns: 36px 1fr; gap: 14px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font-size: 15px; color: var(--muted); }
+  .reqs .r-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+  .reqs .r-ico svg { width: 18px; height: 18px; }
+  .reqs b { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
 
-  footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--faint); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--faint); font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  footer .brand { font-size: 15px; color: var(--text); }
+  footer .brand img { width: 22px; height: 22px; }
   footer a { color: var(--muted); }
+  footer a:hover { color: var(--text); }
+  .foot-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
-  @media (max-width: 900px) {
-    .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 24px; }
+  @media (max-width: 960px) {
+    .ask { grid-template-columns: 1fr; gap: 40px; }
     .features { grid-template-columns: 1fr 1fr; }
     .pipeline { grid-template-columns: 1fr 1fr; }
     .stage:nth-child(2)::after { display: none; }
     .stats { grid-template-columns: 1fr 1fr; }
-    .privacy, .install-grid, .search-explainer { grid-template-columns: 1fr; gap: 28px; }
+    .stat:nth-child(3) { border-left: 0; }
+    .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .privacy, .install-grid { grid-template-columns: 1fr; gap: 32px; }
+    .search-explainer { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .win-main { grid-template-columns: 1fr; min-height: 0; }
+    .win-detail { display: none; }
+    .hero-window { margin-top: 48px; }
   }
   @media (max-width: 560px) {
     .wrap { padding: 0 16px; }
+    nav { height: 58px; }
     .nav-links a:not(.gh) { display: none; }
-    .features, .pipeline { grid-template-columns: 1fr; }
-    .stage::after { display: none; }
-    section { padding: 64px 0; }
-    .meta .tag { display: none; }
+    .hero { padding: 32px 0 72px; }
+    h1 { margin-top: 22px; }
     .lede { font-size: 17px; }
+    .btn { flex: 1 1 auto; }
+    .pill { font-size: 12.5px; border-radius: 16px; text-align: left; line-height: 1.35; padding-right: 12px; }
+    .pill span { white-space: normal; }
+    .features, .pipeline, .providers { grid-template-columns: 1fr; }
+    .stage::after { display: none; }
+    section { padding: 72px 0; }
+    section + section::before, .hero + section::before { width: calc(100% - 32px); }
+    .meta .tag, .win-chip, .win-foot .src, .actions .opt { display: none; }
+    .win-foot { justify-content: flex-end; }
+    .win-search { font-size: 15px; padding: 0 14px; }
+    .row { gap: 9px; padding: 8px 8px; }
+    .answer { padding: 18px 16px 4px; font-size: 14px; }
+    .quote-card { padding: 30px 24px 26px; }
+    .stat { padding: 20px 18px; }
+    .stat b { font-size: 36px; }
+    .terminal pre { font-size: 12px; padding: 18px 16px; }
+    .terminal-title { display: none; }
+    .card { padding: 22px 20px; }
+    .feature { padding: 22px 22px 24px; }
   }
-  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .caret { animation: none; }
+    *, *::before, *::after { transition: none !important; }
+    .feature:hover, .btn:hover, .feature:hover .f-ico, .pill:hover i { transform: none; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav>
-    <a class="brand" href="./"><img src="icon.png" alt="">clipz</a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="#install">Install</a>
-      <a class="gh" href="https://github.com/namanarora00/clipz">GitHub</a>
-    </div>
-  </nav>
-
-  <header class="hero">
-    <div>
-      <div class="eyebrow">Raycast extension · macOS</div>
-      <h1>I made a clipboard manager because apparently that was <em>still a problem.</em></h1>
-      <p class="lede">Clipz remembers everything you copy, where it came from, and finds it again by what it <em>means</em>, not just what it says. Everything runs on your Mac. It has AI too, because of course it does.</p>
-      <div class="cta">
-        <a class="btn btn-primary" href="#install">Install Clipz</a>
-        <a class="btn btn-ghost" href="https://github.com/namanarora00/clipz">
+<div class="nav-shell">
+  <div class="wrap">
+    <nav aria-label="Main">
+      <a class="brand" href="./"><img src="icon.png" alt="" width="28" height="28">clipz</a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#ask">Ask AI</a>
+        <a href="#how">How it works</a>
+        <a href="#install">Install</a>
+        <a class="gh" href="https://github.com/namanarora00/clipz">
           <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          View source
+          GitHub
         </a>
       </div>
-      <p class="fineprint">Free, open source, and allergic to servers.</p>
-    </div>
-
-    <div class="window" role="img" aria-label="Clipz search window showing semantic and text matches">
-      <div class="window-search">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
-        <span class="typed">that telegram bot token</span><span class="caret"></span>
-      </div>
-      <div class="window-body">
-        <div class="section-label"><span>Semantic Matches</span><span>3</span></div>
-        <div class="row selected">
-          <span class="ico" style="background:#2aa3e0">T</span>
-          <span class="title">Done! Congratulations on your new bot…<span class="sub">t.me</span></span>
-          <span class="meta"><span class="tag">Telegram</span><span class="score">79%</span></span>
-        </div>
-        <div class="row">
-          <span class="ico" style="background:#333">›_</span>
-          <span class="title">export BOT_TOKEN=•••••••• <span class="sub">.env</span></span>
-          <span class="meta"><span class="tag">Cursor</span><span class="score">74%</span></span>
-        </div>
-        <div class="row">
-          <span class="ico" style="background:#6d3fdc">↗</span>
-          <span class="title">core.telegram.org/bots/api#setwebhook</span>
-          <span class="meta"><span class="tag">Arc</span><span class="score">72%</span></span>
-        </div>
-        <div class="section-label"><span>Text Matches</span><span>2</span></div>
-        <div class="row">
-          <span class="ico" style="background:#1f8a5b">¶</span>
-          <span class="title">remind me to rotate the telegram bot token</span>
-          <span class="meta"><span class="tag">Notes</span>2d</span>
-        </div>
-        <div class="row">
-          <span class="ico" style="background:#c2410c">✉</span>
-          <span class="title">Re: telegram bot token for the staging group</span>
-          <span class="meta"><span class="tag">Mail</span>1w</span>
-        </div>
-      </div>
-      <div class="window-foot"><span>Paste to Active App <kbd>↵</kbd></span><span>Ask AI <kbd>⌘</kbd> <kbd>↵</kbd></span></div>
-    </div>
-  </header>
+    </nav>
+  </div>
 </div>
+
+<header class="hero">
+  <div class="hero-bg" aria-hidden="true"><div class="hero-grid"></div></div>
+  <div class="wrap">
+    <a class="pill" href="#how"><b>New</b><span>On-device semantic search with EmbeddingGemma 2</span><i aria-hidden="true">→</i></a>
+    <h1>I made a clipboard manager because apparently that was <em class="grad">still a problem.</em></h1>
+    <p class="lede">Clipz is a Raycast extension that remembers everything you copy, where it came from, and finds it again by what it <em>means</em>, not just what it says. Everything runs on your Mac. It has AI too, because of course it does.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#install">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10m0 0l-4-4m4 4l4-4M4 16h12"/></svg>
+        Install Clipz
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/namanarora00/clipz">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View source
+      </a>
+    </div>
+    <p class="fineprint">Free, open source, and allergic to servers.</p>
+
+    <div class="window hero-window" role="img" aria-label="Clipz in Raycast: searching for 'that regex for validating emails' shows semantic matches with scores and text matches, with the selected clip's details on the right">
+      <div class="win-search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+        <span class="typed">that regex for validating emails</span><span class="caret"></span>
+        <span class="spacer"></span>
+        <span class="win-chip">Clipboard History</span>
+      </div>
+      <div class="win-main">
+        <div class="win-list">
+          <div class="section-label"><span>Semantic Matches</span><span>3</span></div>
+          <div class="row selected">
+            <span class="ico" style="background:#2b2b33">{}</span>
+            <span class="title"><code>^[\w.+-]+@[\w-]+\.[\w.]+$</code></span>
+            <span class="meta"><span class="tag">Cursor</span><span class="score">81%</span></span>
+          </div>
+          <div class="row">
+            <span class="ico" style="background:#6d3fdc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 10l4-4M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1"/></svg></span>
+            <span class="title">How can I validate an email address using a regex?<span class="sub">stackoverflow.com</span></span>
+            <span class="meta"><span class="tag">Arc</span><span class="score">76%</span></span>
+          </div>
+          <div class="row">
+            <span class="ico" style="background:#2b2b33">{}</span>
+            <span class="title"><code>z.string().email()</code><span class="sub">signup.tsx</span></span>
+            <span class="meta"><span class="tag">Cursor</span><span class="score">72%</span></span>
+          </div>
+          <div class="section-label"><span>Text Matches</span><span>2</span></div>
+          <div class="row">
+            <span class="ico" style="background:#c98a12">¶</span>
+            <span class="title">regex for emails is a trap. use a library</span>
+            <span class="meta"><span class="tag">Notes</span>2d</span>
+          </div>
+          <div class="row">
+            <span class="ico" style="background:#2f7de1">✉</span>
+            <span class="title">Re: regex for validating emails on signup</span>
+            <span class="meta"><span class="tag">Mail</span>1w</span>
+          </div>
+        </div>
+        <div class="win-detail">
+          <div class="preview">
+<pre><span class="c">// copied from validate.ts</span>
+<span class="k">const</span> EMAIL = <span class="s">/^[\w.+-]+@[\w-]+\.[\w.]+$/</span></pre>
+          </div>
+          <dl class="meta-list">
+            <dt>Copied</dt><dd>Today at 11:42</dd>
+            <dt>From</dt><dd><span class="ico" style="background:#2b2b33">{}</span>Cursor</dd>
+            <dt>File</dt><dd><code>src/lib/validate.ts</code></dd>
+            <dt>Type</dt><dd>Code</dd>
+          </dl>
+        </div>
+      </div>
+      <div class="win-foot">
+        <span class="src"><img src="favicon.png" alt="">Clipz</span>
+        <span class="actions">
+          <span class="primary">Paste to Active App <kbd>↵</kbd></span>
+          <span class="sep opt"></span>
+          <span class="opt">Copy <kbd>⌘</kbd><kbd>C</kbd></span>
+          <span class="sep"></span>
+          <span>Ask AI <kbd>⌘</kbd><kbd>↵</kbd></span>
+        </span>
+      </div>
+    </div>
+  </div>
+</header>
 
 <section id="features">
   <div class="wrap">
-    <h2>Everything you copied. <em>Findable.</em></h2>
+    <div class="eyebrow">Features</div>
+    <h2>Everything you copied. <em class="grad">Findable.</em></h2>
     <p class="section-lede">One clipboard slot is not a personality. Clipz keeps the whole history, the context around it, and a way back to where it came from.</p>
     <div class="features">
-      <div class="feature"><span class="num">01</span><h3>Remembers the source</h3><p>Browser URLs, editor files, the app you copied from. Jump back to the page instead of opening a tab and saying "good luck".</p></div>
-      <div class="feature"><span class="num">02</span><h3>Search by meaning</h3><p>Type "flight booking" and find the boarding pass. EmbeddingGemma 2 runs inside the daemon, so semantic search needs no Ollama and no internet.</p></div>
-      <div class="feature"><span class="num">03</span><h3>Ask your clipboard</h3><p>"What was I working on today?" Hit <kbd>⌘</kbd> <kbd>↵</kbd> and get an answer with sources. Use Raycast AI, local Ollama, OpenAI or Anthropic.</p></div>
-      <div class="feature"><span class="num">04</span><h3>Hides obvious secrets</h3><p>API keys, tokens, JWTs, private keys and env vars get flagged and masked before you demo your screen like a genius. Best effort: a seatbelt, not a vault.</p></div>
-      <div class="feature"><span class="num">05</span><h3>Optional iCloud sync</h3><p>Turn it on and your history (and its search index) follows you across Macs. Turn it off and it stays in <code>~/.clipz</code>.</p></div>
-      <div class="feature"><span class="num">06</span><h3>No artificial limits</h3><p>Your real limits are disk space, SQLite, and your tolerance for preserving everything you copied at 2 AM "for later".</p></div>
+      <article class="feature">
+        <div class="f-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l4-4M9 5.5l1.2-1.2a3.2 3.2 0 014.5 4.5L13.5 10M11 14.5l-1.2 1.2a3.2 3.2 0 01-4.5-4.5L6.5 10"/></svg></div>
+        <h3>Remembers the source</h3>
+        <p>Browser URLs, editor files, the app you copied from. Jump back to the page instead of opening a tab and saying "good luck".</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8.5" r="5"/><path d="M12.5 12.5L17 17"/><path d="M8.5 5.8l.7 1.9 1.9.8-1.9.7-.7 1.9-.8-1.9-1.9-.7 1.9-.8z"/></svg></div>
+        <h3>Search by meaning</h3>
+        <p>Type "flight booking" and find the boarding pass. EmbeddingGemma 2 runs inside the daemon, so semantic search needs no Ollama and no internet.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 016.5 3h7A2.5 2.5 0 0116 5.5v5a2.5 2.5 0 01-2.5 2.5H9l-3.5 3v-3h0A2.5 2.5 0 014 10.5z"/><path d="M7.5 7.2h5M7.5 9.6h3"/></svg></div>
+        <h3>Ask your clipboard</h3>
+        <p>"What was I working on today?" Hit <kbd>⌘</kbd> <kbd>↵</kbd> and get an answer with sources. Use Raycast AI, local Ollama, OpenAI or Anthropic.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.8l5.5 2v4.6c0 3.6-2.4 6.3-5.5 7.6-3.1-1.3-5.5-4-5.5-7.6V4.8z"/><path d="M7.5 10l1.8 1.8 3.4-3.6"/></svg></div>
+        <h3>Hides obvious secrets</h3>
+        <p>API keys, tokens, JWTs, private keys and env vars get flagged and masked before you demo your screen like a genius. Best effort: a seatbelt, not a vault.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15.5h8.2a3.3 3.3 0 00.6-6.5 4.8 4.8 0 00-9.3-.6A3.6 3.6 0 006 15.5z"/></svg></div>
+        <h3>Optional iCloud sync</h3>
+        <p>Turn it on and your history (and its search index) follows you across Macs. Turn it off and it stays in <code>~/.clipz</code>.</p>
+      </article>
+      <article class="feature">
+        <div class="f-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10c-1.6-2.2-2.8-3.3-4.4-3.3a3.3 3.3 0 000 6.6c1.6 0 2.8-1.1 4.4-3.3zm0 0c1.6 2.2 2.8 3.3 4.4 3.3a3.3 3.3 0 000-6.6c-1.6 0-2.8 1.1-4.4 3.3z"/></svg></div>
+        <h3>No artificial limits</h3>
+        <p>Your real limits are disk space, SQLite, and your tolerance for preserving everything you copied at 2 AM "for later".</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="ask">
+  <div class="wrap ask">
+    <div>
+      <div class="eyebrow">Ask AI · ⌘↵</div>
+      <h2>Ask your clipboard. <em class="grad">It shows its sources.</em></h2>
+      <p class="section-lede">Hit <kbd>⌘</kbd> <kbd>↵</kbd> and ask about your history in plain words. You get a short answer and the clips it came from, so you can check its homework.</p>
+      <ul class="providers" aria-label="Supported AI providers">
+        <li class="local">Ollama <small>On-device</small></li>
+        <li>Raycast AI <small>Cloud</small></li>
+        <li>OpenAI <small>Cloud</small></li>
+        <li>Anthropic <small>Cloud</small></li>
+      </ul>
+      <p class="note">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 9v4.5M10 6.6v.1"/></svg>
+        <span>Local Ollama keeps it on-device. Raycast AI, OpenAI or Anthropic will receive the clips needed to answer.</span>
+      </p>
+    </div>
+
+    <div class="window ask-window" role="img" aria-label="Ask AI example: the question 'what was I working on today?' answered in two sentences, citing three clips as sources">
+      <div class="win-search">
+        <svg class="spark" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.5l1.7 4.6 4.8 1.7-4.8 1.7L10 15.2l-1.7-4.7-4.8-1.7 4.8-1.7z"/><path d="M15.5 13.5l.6 1.5 1.4.5-1.4.6-.6 1.4-.5-1.4-1.5-.6 1.5-.5z"/></svg>
+        <span class="typed">what was I working on today?</span>
+        <span class="spacer"></span>
+        <span class="win-chip">Ask AI</span>
+      </div>
+      <div class="answer">
+        <div class="who"><b>Answer</b> · from 3 clips</div>
+        <p>Mostly the signup form. You copied an email regex from <code>validate.ts</code> <span class="cite">1</span>, read a Stack Overflow thread about why that is a bad idea <span class="cite">2</span>, then swapped it for a zod schema <span class="cite">3</span>.</p>
+      </div>
+      <div class="sources">
+        <div class="section-label"><span>Sources</span><span>3</span></div>
+        <div class="row">
+          <span class="cite">1</span>
+          <span class="ico" style="background:#2b2b33">{}</span>
+          <span class="title"><code>^[\w.+-]+@[\w-]+\.[\w.]+$</code><span class="sub">validate.ts</span></span>
+          <span class="meta">11:42</span>
+        </div>
+        <div class="row">
+          <span class="cite">2</span>
+          <span class="ico" style="background:#6d3fdc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 10l4-4M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1"/></svg></span>
+          <span class="title">How can I validate an email address…<span class="sub">stackoverflow.com</span></span>
+          <span class="meta">11:58</span>
+        </div>
+        <div class="row">
+          <span class="cite">3</span>
+          <span class="ico" style="background:#2b2b33">{}</span>
+          <span class="title"><code>z.string().email()</code><span class="sub">signup.tsx</span></span>
+          <span class="meta">12:10</span>
+        </div>
+      </div>
+      <div class="win-foot">
+        <span class="src"><img src="favicon.png" alt="">Clipz · Ollama</span>
+        <span class="actions">
+          <span class="primary">Paste to Active App <kbd>↵</kbd></span>
+          <span class="sep opt"></span>
+          <span class="opt">Copy <kbd>⌘</kbd><kbd>C</kbd></span>
+        </span>
+      </div>
     </div>
   </div>
 </section>
 
 <section id="how">
   <div class="wrap">
-    <h2>How it <em>works</em></h2>
+    <div class="eyebrow">Under the hood</div>
+    <h2>How it <em class="grad">works</em></h2>
     <p class="section-lede">A tiny Swift daemon watches the clipboard and does the heavy lifting. Raycast is just the window you look through.</p>
     <div class="pipeline">
       <div class="stage">
-        <span class="k">01 · You</span>
+        <div class="stage-head">
+          <span class="s-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V5a1.5 1.5 0 00-1.5-1.5H5A1.5 1.5 0 003.5 5v7A1.5 1.5 0 005 13.5h1.5"/></svg></span>
+          <span class="k">01 · You</span>
+        </div>
         <h3>Copy something</h3>
         <ul><li>Text, links, code</li><li>From any app</li><li>Password managers skipped</li></ul>
       </div>
       <div class="stage highlight">
-        <span class="k">02 · clipz-daemon</span>
+        <div class="stage-head">
+          <span class="s-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="10" height="10" rx="2"/><path d="M8 2.5V5M12 2.5V5M8 15v2.5M12 15v2.5M2.5 8H5M2.5 12H5M15 8h2.5M15 12h2.5"/></svg></span>
+          <span class="k">02 · clipz-daemon</span>
+        </div>
         <h3>Swift, always on</h3>
         <ul><li>Detects secrets &amp; type</li><li>Grabs URL / file context</li><li>Embeds it with EmbeddingGemma 2</li></ul>
       </div>
       <div class="stage">
-        <span class="k">03 · SQLite</span>
+        <div class="stage-head">
+          <span class="s-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="10" cy="5" rx="6" ry="2.3"/><path d="M4 5v10c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3V5M4 10c0 1.3 2.7 2.3 6 2.3s6-1 6-2.3"/></svg></span>
+          <span class="k">03 · SQLite</span>
+        </div>
         <h3>history.db</h3>
         <ul><li>Clips + metadata</li><li>768-dim vectors</li><li>Local or iCloud Drive</li></ul>
       </div>
       <div class="stage">
-        <span class="k">04 · Raycast</span>
+        <div class="stage-head">
+          <span class="s-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/></svg></span>
+          <span class="k">04 · Raycast</span>
+        </div>
         <h3>Search &amp; ask</h3>
         <ul><li>Text + semantic matches</li><li>Paste, copy, open source</li><li>Ask AI with sources</li></ul>
       </div>
     </div>
 
     <div class="stats">
-      <div class="stat"><b>~10 ms</b><span>per semantic search</span></div>
-      <div class="stat"><b>~165 MB</b><span>daemon memory at idle</span></div>
-      <div class="stat"><b>300 MB</b><span>one-time model download</span></div>
-      <div class="stat"><b>0</b><span>Clipz servers, forever</span></div>
+      <div class="stat"><b><small>~</small>10 ms</b><span>per semantic search</span></div>
+      <div class="stat"><b><small>~</small>165 MB</b><span>daemon memory at idle</span></div>
+      <div class="stat"><b><small>~</small>300 MB</b><span>one-time model download</span></div>
+      <div class="stat"><b class="grad">0</b><span>Clipz servers, forever</span></div>
     </div>
 
     <div class="search-explainer">
       <div class="card">
-        <h3>Embedded the moment you copy</h3>
+        <h3><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5L4.5 11H10l-1 6.5L15.5 9H10z"/></svg>Embedded the moment you copy</h3>
         <p>The daemon runs Google's EmbeddingGemma 2 through llama.cpp with Metal. Every new clip becomes a vector right away, and anything synced from another Mac is picked up within a minute. Search never waits on a backlog.</p>
       </div>
       <div class="card">
-        <h3>Only the matches that stand out</h3>
+        <h3><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16h14M5.5 16V11M9 16V6M12.5 16V9.5M16 16V12.5" /></svg>Only the matches that stand out</h3>
         <p>Raycast sends your query over a private Unix socket. The daemon scores every clip and keeps just the ones well above that query's own baseline, so unrelated stuff stays out of the way. Plain text matches still show up underneath.</p>
       </div>
     </div>
@@ -341,31 +735,52 @@
 
 <section id="privacy">
   <div class="wrap privacy">
-    <p class="quote">There are no Clipz servers. I cannot leak your data to my backend because, tragically, I did not build one.</p>
+    <figure class="quote-card">
+      <span class="mark" aria-hidden="true">“</span>
+      <blockquote class="quote">There are no Clipz servers. I cannot leak your data to my backend because, tragically, I did not build one.</blockquote>
+      <figcaption><span class="zero">0 servers</span> The privacy policy, more or less.</figcaption>
+    </figure>
     <ul class="checklist">
-      <li><b>History stays on your Mac</b>, in <code>~/.clipz/history.db</code>, unless you turn on iCloud sync.</li>
-      <li><b>Semantic search is fully local.</b> The model runs in the daemon; your clips never leave the machine to get embedded.</li>
-      <li><b>Sensitive clips are never embedded</b> and are masked in the UI.</li>
-      <li><b>Ask AI uses the provider you pick.</b> Local Ollama keeps it on-device. Raycast AI, OpenAI or Anthropic will receive the clips needed to answer.</li>
+      <li><span class="check" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span><b>History stays on your Mac</b>, in <code>~/.clipz/history.db</code>, unless you turn on iCloud sync.</span></li>
+      <li><span class="check" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span><b>Semantic search is fully local.</b> The model runs in the daemon; your clips never leave the machine to get embedded.</span></li>
+      <li><span class="check" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg></span><span><b>Sensitive clips are never embedded</b> and are masked in the UI.</span></li>
+      <li><span class="check warn" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4v5M8 11.8v.1"/></svg></span><span><b>Ask AI uses the provider you pick.</b> Local Ollama keeps it on-device. Raycast AI, OpenAI or Anthropic will receive the clips needed to answer.</span></li>
     </ul>
   </div>
 </section>
 
 <section id="install">
   <div class="wrap">
-    <h2>Up and running in <em>three commands</em></h2>
+    <div class="eyebrow">Install</div>
+    <h2>Up and running in <em class="grad">three commands</em></h2>
     <p class="section-lede">Ridiculous amount of ceremony for remembering text, but here we are.</p>
     <div class="install-grid">
       <div class="terminal">
-        <div class="terminal-bar"><div class="dots"><i></i><i></i><i></i></div><button class="copy" id="copy" type="button">Copy</button></div>
+        <div class="terminal-bar">
+          <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="terminal-title" aria-hidden="true">~/code</span>
+          <button class="copy" id="copy" type="button" aria-live="polite">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 009 2.5H4A1.5 1.5 0 002.5 4v5A1.5 1.5 0 004 10.5h1.5"/></svg>
+            <span>Copy</span>
+          </button>
+        </div>
 <pre id="cmd"><span class="p">$ </span>git clone https://github.com/namanarora00/clipz
 <span class="p">$ </span>cd clipz &amp;&amp; npm run setup
 <span class="p">$ </span>npm run dev   <span class="c"># loads the extension into Raycast</span></pre>
       </div>
       <ul class="reqs">
-        <li><b>Needs</b><span>macOS with Raycast, and Xcode command line tools for the Swift compiler.</span></li>
-        <li><b>Installs</b><span>Node deps, the clipboard daemon, the EmbeddingGemma 2 model, and Ollama for local Ask AI.</span></li>
-        <li><b>Permissions</b><span>macOS may ask for Accessibility or Automation access so Clipz can see where you copied from. Naturally.</span></li>
+        <li>
+          <span class="r-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="10" rx="1.8"/><path d="M7 16.5h6M10 13.5v3" stroke-linecap="round"/></svg></span>
+          <span><b>Needs</b>macOS with Raycast, and Xcode command line tools for the Swift compiler.</span>
+        </li>
+        <li>
+          <span class="r-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5l6.5 3.6v7.8L10 17.5l-6.5-3.6V6.1z"/><path d="M3.8 6.3L10 9.8l6.2-3.5M10 9.8v7.5"/></svg></span>
+          <span><b>Installs</b>Node deps, the clipboard daemon, the EmbeddingGemma 2 model, and Ollama for local Ask AI.</span>
+        </li>
+        <li>
+          <span class="r-ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="9" width="12" height="8.5" rx="2"/><path d="M6.8 9V6.5a3.2 3.2 0 016.4 0V9"/></svg></span>
+          <span><b>Permissions</b>macOS may ask for Accessibility or Automation access so Clipz can see where you copied from. Naturally.</span>
+        </li>
       </ul>
     </div>
   </div>
@@ -373,27 +788,35 @@
 
 <div class="wrap">
   <footer>
-    <span>Made by <a href="https://github.com/namanarora00">Naman Arora</a>, out of spite for single-slot clipboards.</span>
+    <div class="foot-left">
+      <a class="brand" href="./"><img src="icon.png" alt="" width="22" height="22">clipz</a>
+      <span>Made by <a href="https://github.com/namanarora00">Naman Arora</a>, out of spite for single-slot clipboards.</span>
+    </div>
     <a href="https://github.com/namanarora00/clipz">github.com/namanarora00/clipz</a>
   </footer>
 </div>
 
 <script>
   // Copy the setup commands without the prompts or comments.
-  document.getElementById("copy").addEventListener("click", async (event) => {
+  const copyButton = document.getElementById("copy");
+  const copyLabel = copyButton.querySelector("span");
+  copyButton.addEventListener("click", async () => {
     const text = document.getElementById("cmd").innerText
       .split("\n")
       .map((line) => line.replace(/^\$\s*/, "").replace(/\s+#.*$/, ""))
       .join("\n");
     try {
       await navigator.clipboard.writeText(text);
-      event.target.textContent = "Copied. Clipz would remember this.";
+      copyLabel.textContent = "Copied. Clipz would remember this.";
+      copyButton.classList.add("done");
     } catch {
-      event.target.textContent = "Copy failed. Ironic.";
+      copyLabel.textContent = "Copy failed. Ironic.";
     }
-    setTimeout(() => (event.target.textContent = "Copy"), 2400);
+    setTimeout(() => {
+      copyLabel.textContent = "Copy";
+      copyButton.classList.remove("done");
+    }, 2400);
   });
-
 </script>
 </body>
 </html>
